@@ -5,7 +5,7 @@ from evalplus.data.humaneval import get_human_eval
 
 if __name__ == "__main__":
     # check existance of ground truth folder
-    GT_DIR = pathlib.Path(__file__).parent.parent / "groundtruth" / "humaneval"
+    GT_DIR = pathlib.Path(__file__).parent.parent  / "humaneval" / "groundtruth"
 
     assert not os.path.exists(
         GT_DIR

@@ -12,11 +12,10 @@ from evalplus.data.utils import (
 )
 
 HUMANEVAL_PLUS_VERSION = "v0.1.10"
-HUMANEVAL_OVERRIDE_PATH = os.environ.get("HUMANEVAL_OVERRIDE_PATH", None)
 
-
-def _ready_human_eval_plus_path(mini=False, noextreme=False, version="default") -> str:
+def _ready_human_eval_plus_path(mini=False, noextreme=False, version="default",HUMANEVAL_OVERRIDE_PATH=None) -> str:
     if HUMANEVAL_OVERRIDE_PATH:
+        # print("try to get user-defined dataset flag1")
         return HUMANEVAL_OVERRIDE_PATH
 
     version = HUMANEVAL_PLUS_VERSION if version == "default" else version
@@ -28,19 +27,19 @@ def _ready_human_eval_plus_path(mini=False, noextreme=False, version="default") 
     return plus_path
 
 
-def get_human_eval_plus_hash(mini=False, noextreme=False, version="default") -> str:
+def get_human_eval_plus_hash(mini=False, noextreme=False, version="default",HUMANEVAL_OVERRIDE_PATH=None) -> str:
     """Get the hash of HumanEvalPlus.
     Returns:
         str: The hash of HumanEvalPlus
     """
-    plus_path = _ready_human_eval_plus_path(mini, noextreme, version="default")
+    plus_path = _ready_human_eval_plus_path(mini, noextreme, version="default",HUMANEVAL_OVERRIDE_PATH=HUMANEVAL_OVERRIDE_PATH)
     with open(plus_path, "rb") as f:
         plus = f.read()
     return hashlib.md5(plus).hexdigest()
 
 
 def get_human_eval_plus(
-    err_incomplete=True, mini=False, noextreme=False, version="default"
+    err_incomplete=True, mini=False, noextreme=False, version="default",HUMANEVAL_OVERRIDE_PATH=None
 ) -> Dict[str, Dict]:
     """Get HumanEvalPlus locally.
     Args:
@@ -58,12 +57,27 @@ def get_human_eval_plus(
         "atol" is the absolute tolerance for diff-testing
     """
     plus_path = _ready_human_eval_plus_path(
-        mini=mini, noextreme=noextreme, version=version
+        mini=mini, noextreme=noextreme, version=version,HUMANEVAL_OVERRIDE_PATH=HUMANEVAL_OVERRIDE_PATH
     )
     plus = {task["task_id"]: task for task in stream_jsonl(plus_path)}
     if err_incomplete:
         completeness_check("HumanEval+", plus)
     return plus
+
+def get_original_human_eval_plus(
+    err_incomplete=True, mini=False, noextreme=False, version="default",HUMANEVAL_OVERRIDE_PATH=None
+) -> Dict[str, Dict]:
+    plus_path = "/home/lyw/Documents/evalplus/evalplus/my_data/problems0.jsonl"
+    plus = {task["task_id"]: task for task in stream_jsonl(plus_path)}
+    if err_incomplete:
+        completeness_check("HumanEval+", plus)
+    return plus
+
+def get_original_human_eval_plus_hash(mini=False, noextreme=False, version="default",HUMANEVAL_OVERRIDE_PATH=None) -> str:
+    plus_path = "/home/lyw/Documents/evalplus/evalplus/my_data/problems0.jsonl"
+    with open(plus_path, "rb") as f:
+        plus = f.read()
+    return hashlib.md5(plus).hexdigest()
 
 
 def get_human_eval() -> Dict[str, Dict]:

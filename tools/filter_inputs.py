@@ -36,6 +36,7 @@ if __name__ == "__main__":
         plus = json.loads(line)
         task_inputs[plus["task_id"]] = plus["inputs"]
 
+    # 判断生成的输入是否正确
     for p in get_human_eval_plus().values():
         entry_point = p["entry_point"]
         code = p["prompt"] + p["canonical_solution"]

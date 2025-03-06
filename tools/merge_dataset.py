@@ -30,7 +30,7 @@ if __name__ == "__main__":
             problems = get_human_eval_plus(err_incomplete=False)
             tempf = os.path.join(tempdir, "HumanEvalPlus.jsonl")
             with open(tempf, "w") as file:
-                for problem in problems:
+                for problem in problems.values():
                     problem["plus_input"] = plus_input[problem["task_id"]]
                     file.write(json.dumps(problem) + "\n")
 

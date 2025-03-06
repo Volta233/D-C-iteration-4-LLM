@@ -25,6 +25,7 @@ from evalplus.data import (
 )
 from evalplus.data.mbpp import mbpp_serialize_inputs
 from evalplus.data.utils import CACHE_DIR
+from evalplus.data.humaneval import get_original_human_eval_plus,get_original_human_eval_plus_hash
 from evalplus.eval import (
     PASS,
     compatible_eval_result,
@@ -38,16 +39,24 @@ from evalplus.gen.util import trusted_exec
 # 2nd item (optional): the detailed pass/fail boolean for each input
 Result = Tuple[str, List[bool]]
 
+class MyTestResults:
+    def __init__(self):
+        self.normal = 0
+        self.plus = 0
+        self.first_no_pass = -1
+        self.flag = False
+
+my_test_results = MyTestResults()
 
 def get_groundtruth(problems, hashcode, tasks_only_output_not_none):
     cache_file = os.path.join(CACHE_DIR, f"{hashcode}.pkl")
     if os.path.exists(cache_file):
-        print(f"Load from ground-truth from {cache_file}")
+        # print(f"Load from ground-truth from {cache_file}")
         with open(cache_file, "rb") as f:
             return pickle.load(f)
 
     os.makedirs(CACHE_DIR, exist_ok=True)
-    print("Computing expected output...")
+    # print("Computing expected output...")
     tbegin = time.time()
     expected_output = {}
     for task_id, problem in problems.items():
@@ -136,6 +145,7 @@ def evaluate(
     mini: bool = False,
     noextreme: bool = False,
     version: str = "default",
+    HUMANEVAL_OVERRIDE_PATH: str = None,
     **model_kwargs,
 ):
     if model_kwargs:
@@ -158,7 +168,7 @@ def evaluate(
         result_path = samples.replace(".jsonl", "_eval_results.json")
 
     if os.path.isfile(result_path) and not i_just_wanna_run:
-        print(f"Load from previous results from {result_path}")
+        # print(f"Load from previous results from {result_path}")
         with open(result_path, "r") as f:
             results = json.load(f)
 
@@ -166,12 +176,14 @@ def evaluate(
     else:
         if dataset == "humaneval":
             problems = get_human_eval_plus(
-                mini=mini, noextreme=noextreme, version=version
+                mini=mini, noextreme=noextreme, version=version,HUMANEVAL_OVERRIDE_PATH=HUMANEVAL_OVERRIDE_PATH
             )
             dataset_hash = get_human_eval_plus_hash(
-                mini=mini, noextreme=noextreme, version=version
+                mini=mini, noextreme=noextreme, version=version,HUMANEVAL_OVERRIDE_PATH=HUMANEVAL_OVERRIDE_PATH
             )
-            expected_output = get_groundtruth(problems, dataset_hash, [])
+            original_problems = get_original_human_eval_plus()
+            original_hashcode = get_original_human_eval_plus_hash()
+            expected_output = get_groundtruth(original_problems, original_hashcode, [])
         elif dataset == "mbpp":
             problems = get_mbpp_plus(mini=mini, noextreme=noextreme, version=version)
             dataset_hash = get_mbpp_plus_hash(
@@ -196,7 +208,7 @@ def evaluate(
             eval_results = defaultdict(list)  # task_id ->
             remainings = set()
 
-            print("Reading samples...")
+            # print("Reading samples...")
             for sample in tqdm(load_solutions(samples)):
                 task_id = sample["task_id"]
                 if task_id not in problems:
@@ -321,6 +333,8 @@ def evaluate(
     }
     cprint(f"{dataset} (base tests)", "red")
     for k, v in pass_at_k.items():
+        if v > 0 :
+            my_test_results.normal += 1
         cprint(f"{k}:\t{v:.3f}", "red")
     results["pass_at_k"] = {"base": pass_at_k}
 
@@ -332,6 +346,12 @@ def evaluate(
             if (total >= k).all()
         }
         for k, v in pass_at_k.items():
+            if v > 0 :
+                my_test_results.plus += 1
+            elif v == 0 :
+                if my_test_results.first_no_pass != -1 :
+                    my_test_results.first_no_pass = my_test_results.plus + 1 
+                    my_test_results.flag = True
             cprint(f"{k}:\t{v:.3f}", "green")
         results["pass_at_k"]["plus"] = pass_at_k
 
@@ -339,8 +359,8 @@ def evaluate(
     if os.path.isfile(result_path) and i_just_wanna_run:
         decision = ""
         while decision.lower() not in ["y", "n"]:
-            print(f"{result_path} already exists. Press [Y/N] to overwrite or exit...")
-            decision = input()
+            # print(f"{result_path} already exists. Press [Y/N] to overwrite or exit...")
+            decision = "Y"
 
         if decision.lower() == "y":
             # mv the file to a backup
@@ -348,7 +368,7 @@ def evaluate(
             while os.path.isfile(new_path):
                 new_path += ".bak"
             os.rename(result_path, new_path)
-            print(f"Backup {result_path} to {new_path}")
+            # print(f"Backup {result_path} to {new_path}")
 
     if not os.path.isfile(result_path):
         with open(result_path, "w") as f:

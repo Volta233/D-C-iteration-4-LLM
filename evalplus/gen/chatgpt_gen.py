@@ -58,7 +58,7 @@ class ChatGPTGen(BaseGen):
         ret = make_auto_request(
             self.client,
             message=message,
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             max_tokens=256,
             response_format={"type": "text"},
         )

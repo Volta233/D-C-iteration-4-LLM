@@ -6,6 +6,7 @@ perfect, but we will either manually or automatically fix/complete it later.
 
 import json
 import os
+import sys
 import pathlib
 from importlib import import_module
 from inspect import getsource
@@ -19,6 +20,11 @@ HUMANEVAL_PLUS_PATH = (
     pathlib.Path(__file__).parent.parent.parent / "HumanEvalPlus.jsonl"
 )
 
+# 获取项目根目录
+project_root = pathlib.Path(__file__).resolve().parent.parent
+
+# 将项目根目录添加到 sys.path
+sys.path.append(str(project_root))
 
 def _ret(entry_point) -> str:
     """This is a hacky function to return some garbages so that we can
@@ -47,7 +53,7 @@ def {entry_point}(*args):
 
 
 def get_contract_and_ref(task_id: int, entry_point) -> Tuple[str, str]:
-    mod = import_module(f"groundtruth.humaneval.{str(task_id).zfill(3)}_{entry_point}")
+    mod = import_module(f"humaneval.groundtruth.{str(task_id).zfill(3)}_{entry_point}")
     fn = getattr(mod, entry_point)
 
     doc = fn.__doc__
@@ -96,14 +102,18 @@ if __name__ == "__main__":
     with TempDir() as temp_dir:
         tmp_file = os.path.join(temp_dir, HUMANEVAL_PLUS_PATH)
         with open(tmp_file, "w") as writer:
-            for task in human_eval:
-                task_id = int(task["task_id"].split("/")[-1])
+            for task_id, task in human_eval.items():  # 这里迭代的是字典的项，task_id 是键，task 是值
+                if isinstance(task["task_id"], str):  # 确保 task["task_id"] 是字符串
+                    task_id = int(task["task_id"].split("/")[-1])  # 获取 task_id
+                else:
+                    print(f"Error: task_id in task {task} is not a string.")
+                    continue  # 跳过这个任务
                 task["contract"], task["canonical_solution"] = get_contract_and_ref(
-                    task_id, task["entry_point"]
-                )
+                        task_id, task["entry_point"]
+                    )
                 task["base_input"] = instrument_inputs(
-                    task["entry_point"], task["prompt"], task["test"]
-                )
+                        task["entry_point"], task["prompt"], task["test"]
+                    )
                 task["atol"] = get_atol(task_id)
                 task["task_id"] = task["task_id"]
 
