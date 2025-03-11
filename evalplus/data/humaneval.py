@@ -67,14 +67,14 @@ def get_human_eval_plus(
 def get_original_human_eval_plus(
     err_incomplete=True, mini=False, noextreme=False, version="default",HUMANEVAL_OVERRIDE_PATH=None
 ) -> Dict[str, Dict]:
-    plus_path = "/home/lyw/Documents/evalplus/evalplus/my_data/problems0.jsonl"
+    plus_path = "/home/lyw/Documents/evalplus/evalplus/my_data/problem/problems0.jsonl"
     plus = {task["task_id"]: task for task in stream_jsonl(plus_path)}
     if err_incomplete:
         completeness_check("HumanEval+", plus)
     return plus
 
 def get_original_human_eval_plus_hash(mini=False, noextreme=False, version="default",HUMANEVAL_OVERRIDE_PATH=None) -> str:
-    plus_path = "/home/lyw/Documents/evalplus/evalplus/my_data/problems0.jsonl"
+    plus_path = "/home/lyw/Documents/evalplus/evalplus/my_data/problem/problems0.jsonl"
     with open(plus_path, "rb") as f:
         plus = f.read()
     return hashlib.md5(plus).hexdigest()

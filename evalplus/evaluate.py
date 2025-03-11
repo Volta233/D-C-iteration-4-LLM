@@ -333,8 +333,6 @@ def evaluate(
     }
     cprint(f"{dataset} (base tests)", "red")
     for k, v in pass_at_k.items():
-        if v > 0 :
-            my_test_results.normal += 1
         cprint(f"{k}:\t{v:.3f}", "red")
     results["pass_at_k"] = {"base": pass_at_k}
 
@@ -346,12 +344,6 @@ def evaluate(
             if (total >= k).all()
         }
         for k, v in pass_at_k.items():
-            if v > 0 :
-                my_test_results.plus += 1
-            elif v == 0 :
-                if my_test_results.first_no_pass != -1 :
-                    my_test_results.first_no_pass = my_test_results.plus + 1 
-                    my_test_results.flag = True
             cprint(f"{k}:\t{v:.3f}", "green")
         results["pass_at_k"]["plus"] = pass_at_k
 

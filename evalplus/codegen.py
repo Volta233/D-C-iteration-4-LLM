@@ -263,7 +263,7 @@ def my_run_codegen(
     root: str = "evalplus_results",
     bs: Optional[int] = None,
     n_samples: int = 1,
-    temperature: float = 0.0,
+    temperature: float = 0.2,
     resume: bool = True,
     greedy: bool = False,
     id_range: List = None,
