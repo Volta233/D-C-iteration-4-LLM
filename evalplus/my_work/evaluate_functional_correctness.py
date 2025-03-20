@@ -2,6 +2,7 @@ import sys
 import os
 import shutil
 import json
+import numpy as np
 from typing import Dict, List, Generator
 
 from evalplus.my_work.generate_samples import *
@@ -43,15 +44,15 @@ def clean_humaneval_dir():
         except Exception as e:
             print(f"Error deleting {file_path}: {str(e)}")
 
-    for filename in os.listdir(PROBLEM_PATH) :
-        file_path = os.path.join(PROBLEM_PATH, filename)
-        try:
-            if os.path.isfile(file_path):
-                os.remove(file_path)
-            elif os.path.isdir(file_path):
-                shutil.rmtree(file_path)
-        except Exception as e:
-            print(f"Error deleting {file_path}: {str(e)}")
+    # for filename in os.listdir(PROBLEM_PATH) :
+    #     file_path = os.path.join(PROBLEM_PATH, filename)
+    #     try:
+    #         if os.path.isfile(file_path):
+    #             os.remove(file_path)
+    #         elif os.path.isdir(file_path):
+    #             shutil.rmtree(file_path)
+    #     except Exception as e:
+    #         print(f"Error deleting {file_path}: {str(e)}")
 
 
 def read_problems(evalset_file: str = PROBLEM_PATH) -> Dict[str, Dict]:
@@ -121,7 +122,8 @@ def calculate_and_log_scores(task_id:str,
             fail_ratio = total_fails / total_tests if total_tests else 1.0
             pass_ratio = 1 - fail_ratio
             composite_score = pass_ratio * (1 - (fail_ratio * time_weight)**2)
-            composite_score = np.log(1 / (1 - composite_score))
+            if composite_score < 1 :
+                composite_score = np.log(1 / (1 - composite_score))
             # 构建带权重的失败记录
             base_details = [
                 {"test_input": test, "time_weight": time_weight}
@@ -174,7 +176,7 @@ def select_sample(samples: List[Dict], problem: Dict) -> Optional[Dict]:
 def main():
     clean_humaneval_dir()  # 执行目录清理
     # 定义每个任务生成的样本数量
-    num_samples_per_task = 2
+    num_samples_per_task = 5
     # 流程迭代次数
     num_iteration = 5
 
