@@ -1,0 +1,2 @@
+{"task_id": "HumanEval/122", "iteration": 0, "pass@k": {"base": {"pass@1": 1.0}, "plus": {"pass@1": 1.0}}, "composite_score": 1.0, "base_fail_details": [], "plus_fail_details": []}
+{"task_id": "HumanEval/122", "iteration": 0, "pass@k": {"base": {"pass@1": 1.0}, "plus": {"pass@1": 1.0}}, "composite_score": 1.0, "base_fail_details": [], "plus_fail_details": []}

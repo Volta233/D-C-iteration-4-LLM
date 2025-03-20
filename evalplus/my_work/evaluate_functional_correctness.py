@@ -7,13 +7,15 @@ from typing import Dict, List, Generator
 from evalplus.my_work.generate_samples import *
 
 from evalplus.data.utils import stream_jsonl,write_jsonl
-from evalplus.evaluate import evaluate, my_test_results
+from evalplus.evaluate import evaluate
 from evalplus.codegen import my_run_codegen
 
 HUMANEVAL_OVERRIDE_PATH = None
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RESULT_PATH = os.path.join(BASE_DIR, "my_data", "result", "humaneval")
 PROBLEM_PATH = os.path.join(BASE_DIR,"my_data","problem")
+SCORE_PATH = os.path.join(BASE_DIR,"my_data","score")
+GPT_BASE_URL = "https://svip.xty.app/v1"
 
 def clean_humaneval_dir():
     """安全清理目录函数，保留符合正则模式的文件"""
@@ -23,6 +25,26 @@ def clean_humaneval_dir():
         if pattern.match(filename):  # 匹配目标文件名模式则跳过
             continue
         file_path = os.path.join(RESULT_PATH, filename)
+        try:
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            print(f"Error deleting {file_path}: {str(e)}")
+
+    for filename in os.listdir(SCORE_PATH) :
+        file_path = os.path.join(SCORE_PATH, filename)
+        try:
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            print(f"Error deleting {file_path}: {str(e)}")
+
+    for filename in os.listdir(PROBLEM_PATH) :
+        file_path = os.path.join(PROBLEM_PATH, filename)
         try:
             if os.path.isfile(file_path):
                 os.remove(file_path)
@@ -46,8 +68,9 @@ def stream_eval_results(file_path: str) -> Generator[Dict, None, None]:
                     yield {
                         **sample,
                         "task_id": task_id,
-                        "base_status": record.get("base_status", "unknown"),
-                        "plus_status": record.get("plus_status", "unknown")
+                        "pass_at_k": record["pass_at_k"],
+                        "base_status": sample.get("base_status", "unknown"),
+                        "plus_status": sample.get("plus_status", "unknown")
                     }
 
 def read_evaluated_samples(eval_file: str) -> Dict[str, List[Dict]]:
@@ -59,6 +82,7 @@ def read_evaluated_samples(eval_file: str) -> Dict[str, List[Dict]]:
             samples[task_id] = []
         samples[task_id].append({
             "solution": record["solution"],
+            "pass_at_k": record["pass_at_k"],
             "base_status": record["base_status"],
             "plus_status": record["plus_status"],
             "base_fail_tests": record["base_fail_tests"],
@@ -66,8 +90,63 @@ def read_evaluated_samples(eval_file: str) -> Dict[str, List[Dict]]:
         })
     return samples
 
+def calculate_and_log_scores(task_id:str,
+                            task_samples: List[Dict], 
+                            problem: Dict, 
+                            iteration: int,
+                            folder_path: str,
+                            decay_rate: float = 0.1) -> None:
+    """动态计算样本评分并写入迭代日志文件"""
+    # 生成带迭代次数的文件名
+    score_log_path = os.path.join(folder_path, f"score_{iteration}.ndjson")
+    
+    # 预计算总测试数量
+    total_base_tests = len(problem["base_input"])
+    total_plus_tests = len(problem["plus_input"])
+    total_tests = total_base_tests + total_plus_tests
+    
+    with open(score_log_path, 'w') as f:
+        for sample in task_samples:
+            # 关键字段提取
+            task_id = task_id
+            pass_at_k = sample.get("pass_at_k", {})
+            
+            # 动态权重计算
+            time_weight = 1 + decay_rate * iteration
+            weighted_base = len(sample["base_fail_tests"]) * time_weight
+            weighted_plus = len(sample["plus_fail_tests"]) * time_weight
+            total_fails = weighted_base + weighted_plus
+            
+            # 评分公式实现
+            fail_ratio = total_fails / total_tests if total_tests else 1.0
+            pass_ratio = 1 - fail_ratio
+            composite_score = pass_ratio * (1 - (fail_ratio * time_weight)**2)
+            composite_score = np.log(1 / (1 - composite_score))
+            # 构建带权重的失败记录
+            base_details = [
+                {"test_input": test, "time_weight": time_weight}
+                for test in sample["base_fail_tests"]
+            ]
+            plus_details = [
+                {"test_input": test, "time_weight": time_weight}
+                for test in sample["plus_fail_tests"]
+            ]
+            
+            # 生成符合格式要求的记录
+            log_record = {
+                "task_id": task_id,
+                "iteration": iteration,
+                "pass@k": pass_at_k,
+                "composite_score": round(composite_score, 6),
+                "base_fail_details": base_details,
+                "plus_fail_details": plus_details
+            }
+            
+            # 写入NDJSON格式
+            f.write(json.dumps(log_record) + '\n')
+
 def select_sample(samples: List[Dict], problem: Dict) -> Optional[Dict]:
-    """基于评估结果的四维筛选策略"""
+    """基于评估结果的四维筛选策略, 同时记录每个sample的评分"""
     # 维度1：完全通过测试的样本
     perfect_pass = [s for s in samples 
                    if s["base_status"] == "pass" 
@@ -96,60 +175,45 @@ def main():
     clean_humaneval_dir()  # 执行目录清理
     # 定义每个任务生成的样本数量
     num_samples_per_task = 2
-    num_of_tasks = 1
-
     # 流程迭代次数
-    num_iteration = 2
+    num_iteration = 5
 
     # data文件夹绝对路径
     folder_path = PROBLEM_PATH
-
+    score_log_path = SCORE_PATH
     #循环体,初始提供problems0.jsonl文件
     i = 0
     while i < num_iteration :
         # 获取problems
-        # print("=============start getting problems=================")
         problems_name = "problems" + str(i) + ".jsonl"
         problems_path = os.path.join(folder_path, problems_name)
         HUMANEVAL_OVERRIDE_PATH = problems_path
-        # print("HUMANEVAL_OVERRIDE_PATH = " + HUMANEVAL_OVERRIDE_PATH)
         problems = read_problems(problems_path)
 
         # 对每个任务生成样本
-        # print("=============start getting samples===================")
         samples_path = my_run_codegen(model="gpt-4o-mini",
                               root=os.path.join(BASE_DIR, "my_data", "result"),
                               n_samples = num_samples_per_task,
                               greedy=False,
                               dataset="humaneval",
-                              base_url="https://svip.xty.app/v1",
+                              base_url=GPT_BASE_URL,
                               backend="openai",
                               HUMANEVAL_OVERRIDE_PATH=HUMANEVAL_OVERRIDE_PATH
                               )
 
         samples_name = "samples" + str(i) 
-        # 获取原文件路径
         original_file_path = samples_path
-
-        # 设置新的文件名
         _, file_extension = os.path.splitext(original_file_path)
         new_file_name = samples_name + file_extension  # 新的文件名
         new_file_path = os.path.join(os.path.dirname(original_file_path), new_file_name)
-
-        # 使用 os.rename() 重命名文件
         os.rename(original_file_path, new_file_path)
         # 对样本进行检测
-        # print("=============start evaluating samples===================")
-
         evaluate(dataset="humaneval",
                  samples=new_file_path,
                  i_just_wanna_run=True,
                  HUMANEVAL_OVERRIDE_PATH=HUMANEVAL_OVERRIDE_PATH)
-        
         # 根据样本生成新的problem文件
         # 读取 JSONL 文件并解析每一行
-
-        # 修改后的new_problems生成逻辑
         seen_ids = set()
         new_problems = []
 
@@ -164,7 +228,14 @@ def main():
 
             # 验证字段完整性
             assert "base_fail_tests" in task_samples[0], "缺失关键评估字段"
-
+            calculate_and_log_scores(
+                task_id=task_id,
+                task_samples=task_samples,
+                problem=problem,
+                iteration=i,
+                folder_path=score_log_path,
+                decay_rate=0.1  # 可配置参数
+            )
             # 执行双重筛选
             candidate = select_sample(task_samples, problem) 
             
