@@ -6,6 +6,7 @@ import numpy as np
 from typing import Dict, List, Generator
 
 from evalplus.my_work.generate_samples import *
+from evalplus.my_work.get_final_output import generate_final_report
 
 from evalplus.data.utils import stream_jsonl,write_jsonl
 from evalplus.evaluate import evaluate
@@ -122,8 +123,16 @@ def calculate_and_log_scores(task_id:str,
             fail_ratio = total_fails / total_tests if total_tests else 1.0
             pass_ratio = 1 - fail_ratio
             composite_score = pass_ratio * (1 - (fail_ratio * time_weight)**2)
-            if composite_score < 1 :
-                composite_score = np.log(1 / (1 - composite_score))
+            # 动态ε修正策略
+            if composite_score >= 0.99:
+                # 当评分≥0.99时，ε随接近1的程度线性增大（系数0.1可调）
+                epsilon = max(1e-8, 0.1 * (1 - composite_score))
+            else:
+                # 低分区保持固定极小量（避免浮点误差）
+                epsilon = 1e-8
+    
+            # 对数变换的统一处理（消除条件分支）
+            adjusted_score = np.log(1 / (1 - composite_score + epsilon))
             # 构建带权重的失败记录
             base_details = [
                 {"test_input": test, "time_weight": time_weight}
@@ -139,7 +148,7 @@ def calculate_and_log_scores(task_id:str,
                 "task_id": task_id,
                 "iteration": iteration,
                 "pass@k": pass_at_k,
-                "composite_score": round(composite_score, 6),
+                "composite_score": round(adjusted_score, 6),
                 "base_fail_details": base_details,
                 "plus_fail_details": plus_details
             }
@@ -176,9 +185,9 @@ def select_sample(samples: List[Dict], problem: Dict) -> Optional[Dict]:
 def main():
     clean_humaneval_dir()  # 执行目录清理
     # 定义每个任务生成的样本数量
-    num_samples_per_task = 5
+    num_samples_per_task = 10
     # 流程迭代次数
-    num_iteration = 5
+    num_iteration = 10
 
     # data文件夹绝对路径
     folder_path = PROBLEM_PATH
@@ -196,6 +205,7 @@ def main():
         samples_path = my_run_codegen(model="gpt-4o-mini",
                               root=os.path.join(BASE_DIR, "my_data", "result"),
                               n_samples = num_samples_per_task,
+                              temperature=0.6,
                               greedy=False,
                               dataset="humaneval",
                               base_url=GPT_BASE_URL,
@@ -268,6 +278,6 @@ def main():
         write_jsonl(new_problems_path, new_problems)
 
         i += 1
-
-
+    
+generate_final_report()
 sys.exit(main())
