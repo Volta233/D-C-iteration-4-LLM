@@ -1,5 +1,0 @@
-{"task_id": "HumanEval/122", "iteration": 1, "pass@k": {"base": {"pass@1": 0.8}, "plus": {"pass@1": 0.8}}, "composite_score": 1.0, "base_fail_details": [], "plus_fail_details": []}
-{"task_id": "HumanEval/122", "iteration": 1, "pass@k": {"base": {"pass@1": 0.8}, "plus": {"pass@1": 0.8}}, "composite_score": 1.0, "base_fail_details": [], "plus_fail_details": []}
-{"task_id": "HumanEval/122", "iteration": 1, "pass@k": {"base": {"pass@1": 0.8}, "plus": {"pass@1": 0.8}}, "composite_score": 6.121646, "base_fail_details": [{"test_input": [[1, -2, -3, 41, 57, 76, 87, 88, 99], 3], "time_weight": 1.1}], "plus_fail_details": [{"test_input": [[98, 87, 76, 65, 54, 43, 32, 21, 10], 5], "time_weight": 1.1}]}
-{"task_id": "HumanEval/122", "iteration": 1, "pass@k": {"base": {"pass@1": 0.8}, "plus": {"pass@1": 0.8}}, "composite_score": 1.0, "base_fail_details": [], "plus_fail_details": []}
-{"task_id": "HumanEval/122", "iteration": 1, "pass@k": {"base": {"pass@1": 0.8}, "plus": {"pass@1": 0.8}}, "composite_score": 1.0, "base_fail_details": [], "plus_fail_details": []}

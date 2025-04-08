@@ -5,10 +5,7 @@ import io
 import tokenize
 from typing import Any, List, Optional, Tuple
 from evalplus.sanitize import sanitize
-
-MODEL_NAME = "gpt-4o-mini"
-API_KEY = "sk-viODA4qbv0KsnroB8950Df3602F84d1fB1Bb2b53803151E1"
-BASE_URL = "https://svip.xty.app/v1"
+from evalplus.my_work.hyperparams import *
 
 def generate_one_problem(prompt,entry_point,max_retries: int = 3):
     client = openai.OpenAI(
