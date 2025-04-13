@@ -75,14 +75,16 @@ def calculate_and_log_scores(task_id: str,
             }
             f.write(json.dumps(log_record) + '\n')
     
-    # 计算B_i评分（网页1的统计量计算方法）
+    # 计算B_i评分
     if len(A_list) == 0:
         B_i = 0.0
     else:
         A_arr = np.array(A_list)
         mu = A_arr.mean()
         sigma = A_arr.std(ddof=0)  # 总体标准差
-        B_i = (mu + sigma)  # 公式等价转换后的简化计算
+        cv = sigma / mu  # 变异系数
+        penalty_factor = np.exp(-cv)  # 惩罚因子
+        B_i = mu * penalty_factor
     
     # 追加B_i记录（网页2的扩展日志格式）
     with open(score_log_path, 'a') as f:
