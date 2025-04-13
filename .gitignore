@@ -174,9 +174,15 @@ evalplus/_version.py
 *mbpp.json
 *.jsonl
 *.json
+*.ndjson
 *.png
 *.pdf
 trash-bin
 .bak
 evalplus.github.io
 evalplus_results/
+
+# my_filter
+evalplus/my_data
+Dockerfile
+.dockerignore
