@@ -186,3 +186,10 @@ evalplus_results/
 evalplus/my_data
 Dockerfile
 .dockerignore
+tools
+tests
+setup.*
+requirements*
+gallary
+docs
+
