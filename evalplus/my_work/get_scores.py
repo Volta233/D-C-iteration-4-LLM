@@ -6,6 +6,7 @@ from collections import defaultdict
 import numpy as np
 from typing import Any, List, Optional, Tuple, Dict
 from evalplus.my_work.hyperparams import *
+from itertools import islice
 
 def select_sample(samples: List[Dict], problem: Dict) -> Optional[Dict]:
     """基于评估结果的四维筛选策略, 同时记录每个sample的评分, 用简单评分最高的作为下次迭代的输入"""
@@ -117,7 +118,7 @@ def calculate_final_score(B_list: List[float]) -> float:
     
     return total
 
-def collect_fail_cases(score_path, num_iterations):
+def collect_fail_cases(score_path, num_iterations, num_samples_per_task):
     # 数据结构：{task_id: {"base": Counter, "plus": Counter}}
     fail_stats = defaultdict(lambda: {"base": defaultdict(int), "plus": defaultdict(int)})
     
@@ -125,7 +126,7 @@ def collect_fail_cases(score_path, num_iterations):
     for i in range(num_iterations):
         score_file = os.path.join(score_path, f"score_{i}.ndjson")
         with open(score_file, 'r') as f:
-            for line in f:
+            for line in islice(f, num_samples_per_task):
                 entry = json.loads(line.strip())
                 task_id = entry["task_id"]
                 

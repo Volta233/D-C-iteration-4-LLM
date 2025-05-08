@@ -138,7 +138,7 @@ def main():
         i += 1
     
     final_score = calculate_final_score(B_scores)
-    fail_stats = collect_fail_cases(SCORE_PATH, num_iteration)
+    fail_stats = collect_fail_cases(SCORE_PATH, num_iteration, num_samples_per_task)
     frequent_cases = filter_frequent_fails(fail_stats, num_iteration)
     generate_report(final_score, frequent_cases, REPORT_PATH)
     
