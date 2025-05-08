@@ -2,6 +2,7 @@ import sys
 import os
 import shutil
 import json
+from collections import defaultdict
 import numpy as np
 from typing import Any, List, Optional, Tuple, Dict
 from evalplus.my_work.hyperparams import *
@@ -48,9 +49,14 @@ def calculate_and_log_scores(task_id: str,
     epsilon = 1e-8  # 公式定义的小量
     
     A_list = []
-    
+    get_passk = False
+    passk = {}
+
     with open(score_log_path, 'w') as f:
         for sample in task_samples:
+            if get_passk == False:
+                passk = sample.get("pass_at_k", {})
+                get_passk = True
             # 计算基础指标
             W_base = len(sample["base_fail_tests"])
             W_plus = len(sample["plus_fail_tests"])
@@ -68,10 +74,9 @@ def calculate_and_log_scores(task_id: str,
             log_record = {
                 "task_id": task_id,
                 "iteration": iteration,
-                "pass@k": sample.get("pass_at_k", {}),
                 "composite_score": round(A_j, 6),
-                "base_fail_details": [{"test_input": t, "time_weight": 1.0} for t in sample["base_fail_tests"]],
-                "plus_fail_details": [{"test_input": t, "time_weight": 1.0} for t in sample["plus_fail_tests"]]
+                "base_fail_details": [{"test_input": t} for t in sample["base_fail_tests"]],
+                "plus_fail_details": [{"test_input": t} for t in sample["plus_fail_tests"]]
             }
             f.write(json.dumps(log_record) + '\n')
     
@@ -86,13 +91,14 @@ def calculate_and_log_scores(task_id: str,
         penalty_factor = np.exp(-cv)  # 惩罚因子
         B_i = mu * penalty_factor
     
-    # 追加B_i记录（网页2的扩展日志格式）
+    # 追加B_i记录
     with open(score_log_path, 'a') as f:
         f.write(json.dumps({
             "task_id": task_id,
             "iteration": iteration,
+            "pass@k": passk,
             "B_score": round(B_i, 6),
-            "type": "iteration_summary"
+            "type": "B_scores_summary"
         }) + '\n')
     
     return B_i
@@ -111,67 +117,54 @@ def calculate_final_score(B_list: List[float]) -> float:
     
     return total
 
-# 老版本评分公式，带有时间权重
-# def calculate_and_log_scores(task_id:str,
-#                             task_samples: List[Dict], 
-#                             problem: Dict, 
-#                             iteration: int,
-#                             folder_path: str,
-#                             decay_rate: float = 0.1) -> None:
-#     """动态计算样本评分并写入迭代日志文件"""
-#     # 生成带迭代次数的文件名
-#     score_log_path = os.path.join(folder_path, f"score_{iteration}.ndjson")
+def collect_fail_cases(score_path, num_iterations):
+    # 数据结构：{task_id: {"base": Counter, "plus": Counter}}
+    fail_stats = defaultdict(lambda: {"base": defaultdict(int), "plus": defaultdict(int)})
     
-#     # 预计算总测试数量
-#     total_base_tests = len(problem["base_input"])
-#     total_plus_tests = len(problem["plus_input"])
-#     total_tests = total_base_tests + total_plus_tests
+    # 遍历每个迭代的score文件 
+    for i in range(num_iterations):
+        score_file = os.path.join(score_path, f"score_{i}.ndjsonl")
+        with open(score_file, 'r') as f:
+            for line in f:
+                entry = json.loads(line.strip())
+                task_id = entry["task_id"]
+                
+                # 统计base失败用例 
+                for case in entry.get("base_fail_details", []):
+                    test_input = tuple(case["test_input"])  # 转换为可哈希类型
+                    fail_stats[task_id]["base"][test_input] += 1
+                
+                # 统计plus失败用例 
+                for case in entry.get("plus_fail_details", []):
+                    test_input = tuple(case["test_input"])
+                    fail_stats[task_id]["plus"][test_input] += 1
+    return fail_stats
+
+def filter_frequent_fails(fail_stats, num_iterations):
+    threshold = num_iterations // 2  # 超过半数迭代失败
+    frequent_cases = {}
     
-#     with open(score_log_path, 'w') as f:
-#         for sample in task_samples:
-#             # 关键字段提取
-#             task_id = task_id
-#             pass_at_k = sample.get("pass_at_k", {})
-            
-#             # 动态权重计算
-#             time_weight = 1 + decay_rate * iteration
-#             weighted_base = len(sample["base_fail_tests"]) * time_weight
-#             weighted_plus = len(sample["plus_fail_tests"]) * time_weight
-#             total_fails = weighted_base + weighted_plus
-            
-#             # 评分公式实现
-#             fail_ratio = total_fails / total_tests if total_tests else 1.0
-#             pass_ratio = 1 - fail_ratio
-#             composite_score = pass_ratio * (1 - (fail_ratio * time_weight)**2)
-#             # 动态ε修正策略
-#             if composite_score >= 0.99:
-#                 # 当评分≥0.99时，ε随接近1的程度线性增大（系数0.1可调）
-#                 epsilon = max(1e-8, 0.1 * (1 - composite_score))
-#             else:
-#                 # 低分区保持固定极小量（避免浮点误差）
-#                 epsilon = 1e-8
+    for task_id, counters in fail_stats.items():
+        frequent = []
+        # 合并base和plus用例 
+        for test_input in set(counters["base"]) | set(counters["plus"]):
+            total = counters["base"].get(test_input, 0) + counters["plus"].get(test_input, 0)
+            if total > threshold:
+                frequent.append({"test_input": list(test_input)})  # 转换回列表
+        frequent_cases[task_id] = frequent
+    return frequent_cases
+
+def generate_report(final_score, frequent_cases, report_path):
+    report = []
+    for task_id, cases in frequent_cases.items():
+        report_entry = {
+            "task_id": task_id,
+            "frequent_fail_cases": cases,
+            "final_score_C": final_score  
+        }
+        report.append(report_entry)
     
-#             # 对数变换的统一处理（消除条件分支）
-#             adjusted_score = np.log(1 / (1 - composite_score + epsilon))
-#             # 构建带权重的失败记录
-#             base_details = [
-#                 {"test_input": test, "time_weight": time_weight}
-#                 for test in sample["base_fail_tests"]
-#             ]
-#             plus_details = [
-#                 {"test_input": test, "time_weight": time_weight}
-#                 for test in sample["plus_fail_tests"]
-#             ]
-            
-#             # 生成符合格式要求的记录
-#             log_record = {
-#                 "task_id": task_id,
-#                 "iteration": iteration,
-#                 "pass@k": pass_at_k,
-#                 "composite_score": round(adjusted_score, 6),
-#                 "base_fail_details": base_details,
-#                 "plus_fail_details": plus_details
-#             }
-            
-#             # 写入NDJSON格式
-#             f.write(json.dumps(log_record) + '\n')
+    # 写入JSONL文件 
+    with open(report_path, 'w') as f:
+        for entry in report:
+            f.write(json.dumps(entry) + '\n')

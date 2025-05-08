@@ -11,6 +11,7 @@ from evalplus.my_work.IO_process import *
 from evalplus.evaluate import evaluate
 from evalplus.codegen import my_run_codegen
 from evalplus.my_work.hyperparams import *
+from evalplus.my_work.comment_similarity import *
 
 def main():
     clean_humaneval_dir()  # 执行目录清理
@@ -22,7 +23,13 @@ def main():
     # data文件夹绝对路径
     folder_path = PROBLEM_PATH
     score_log_path = SCORE_PATH
-    #循环体,初始提供problems0.jsonl文件
+    # 循环体,初始提供problems0.jsonl文件
+    # 加载原始问题描述
+    original_problems = read_problems(os.path.join(PROBLEM_PATH, "problems0.jsonl"))
+    original_docs = {
+        task_id: extract_docstring(problem["prompt"])
+        for task_id, problem in original_problems.items()
+    }
     i = 0
     B_scores = []
     while i < num_iteration :
@@ -102,15 +109,37 @@ def main():
                     )
                 )
 
-
-
         new_problems_name = "problems" + str(i+1) + ".jsonl"
         new_problems_path = os.path.join(folder_path,new_problems_name)
         write_jsonl(new_problems_path, new_problems)
 
+        new_problems = read_problems(new_problems_path)
+    
+        # 计算语义相似度
+        semantic_scores = []
+        for task_id, problem in new_problems.items():
+            new_doc = extract_docstring(problem["prompt"])
+            original_doc = original_docs.get(task_id, "")
+            similarity = get_similarity_score(original_doc, new_doc)
+            semantic_scores.append(similarity)
+        
+        avg_semantic = sum(semantic_scores)/len(semantic_scores) if semantic_scores else 0.0
+
+        # 写入到score文件 
+        summary_entry = {
+            "iteration": i,
+            "semantic_similarity": avg_semantic,
+            "type": "text_similarity_summary"
+        }
+        score_file = os.path.join(SCORE_PATH, f"score_{i}.ndjsonl")
+        with open(score_file, 'a') as f:
+            f.write(json.dumps(summary_entry) + '\n')
+
         i += 1
     
     final_score = calculate_final_score(B_scores)
-    print(f"Model Final Score C = {final_score:.4f}")
+    fail_stats = collect_fail_cases(SCORE_PATH, num_iteration)
+    frequent_cases = filter_frequent_fails(fail_stats, num_iteration)
+    generate_report(final_score, frequent_cases, REPORT_PATH)
     
 sys.exit(main())
