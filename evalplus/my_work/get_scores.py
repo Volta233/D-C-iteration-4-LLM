@@ -123,7 +123,7 @@ def collect_fail_cases(score_path, num_iterations):
     
     # 遍历每个迭代的score文件 
     for i in range(num_iterations):
-        score_file = os.path.join(score_path, f"score_{i}.ndjsonl")
+        score_file = os.path.join(score_path, f"score_{i}.ndjson")
         with open(score_file, 'r') as f:
             for line in f:
                 entry = json.loads(line.strip())

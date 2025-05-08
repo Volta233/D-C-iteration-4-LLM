@@ -131,7 +131,7 @@ def main():
             "semantic_similarity": avg_semantic,
             "type": "text_similarity_summary"
         }
-        score_file = os.path.join(SCORE_PATH, f"score_{i}.ndjsonl")
+        score_file = os.path.join(SCORE_PATH, f"semantic_score.ndjson")
         with open(score_file, 'a') as f:
             f.write(json.dumps(summary_entry) + '\n')
 
