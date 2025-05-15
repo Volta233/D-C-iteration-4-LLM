@@ -121,51 +121,101 @@ def calculate_final_score(B_list: List[float]) -> float:
 def collect_fail_cases(score_path, num_iterations, num_samples_per_task):
     # 数据结构：{task_id: {"base": Counter, "plus": Counter}}
     fail_stats = defaultdict(lambda: {"base": defaultdict(int), "plus": defaultdict(int)})
-    
-    # 遍历每个迭代的score文件 
+    all_task_ids = set()  # 新增：存储所有遇到的task_id
+
     for i in range(num_iterations):
         score_file = os.path.join(score_path, f"score_{i}.ndjson")
         with open(score_file, 'r') as f:
             for line in islice(f, num_samples_per_task):
                 entry = json.loads(line.strip())
                 task_id = entry["task_id"]
-                
-                # 统计base失败用例 
+                all_task_ids.add(task_id)  # 记录所有task_id
+
+                # 统计失败用例
                 for case in entry.get("base_fail_details", []):
-                    test_input = tuple(case["test_input"])  # 转换为可哈希类型
+                    test_input = tuple(case["test_input"])
                     fail_stats[task_id]["base"][test_input] += 1
-                
-                # 统计plus失败用例 
                 for case in entry.get("plus_fail_details", []):
                     test_input = tuple(case["test_input"])
                     fail_stats[task_id]["plus"][test_input] += 1
-    return fail_stats
+                    
+    return fail_stats, all_task_ids  # 返回新增的all_task_ids
 
-def filter_frequent_fails(fail_stats, num_iterations):
-    threshold = num_iterations // 2  # 超过半数迭代失败
+
+def filter_frequent_fails(fail_stats, num_iterations, all_task_ids):
+    threshold = 0
     frequent_cases = {}
     
-    for task_id, counters in fail_stats.items():
+    # 遍历所有记录过的task_id（关键修改）
+    for task_id in all_task_ids:
+        # 获取该task_id的计数器（可能不存在）
+        base_counts = fail_stats.get(task_id, {}).get("base", {})
+        plus_counts = fail_stats.get(task_id, {}).get("plus", {})
+        
         frequent = []
-        # 合并base和plus用例 
-        for test_input in set(counters["base"]) | set(counters["plus"]):
-            total = counters["base"].get(test_input, 0) + counters["plus"].get(test_input, 0)
+        # 合并两种失败用例
+        for test_input in set(base_counts) | set(plus_counts):
+            total = base_counts.get(test_input, 0) + plus_counts.get(test_input, 0)
             if total > threshold:
-                frequent.append({"test_input": list(test_input)})  # 转换回列表
+                frequent.append({"test_input": list(test_input)})
+                
         frequent_cases[task_id] = frequent
+        
     return frequent_cases
 
+def extract_task_number(task_id):
+    """从task_id中提取数字部分进行排序"""
+    parts = task_id.split('/')
+    if len(parts) < 2:
+        return 0
+    try:
+        return int(parts[-1])
+    except ValueError:
+        return 0
+
+
 def generate_report(final_score, frequent_cases, report_path):
-    report = []
+    existing_entries = {}
+    try:
+        with open(report_path, 'r') as f:
+            for line in f:
+                entry = json.loads(line.strip())
+                existing_entries[entry["task_id"]] = entry
+    except FileNotFoundError:
+        pass
+
+    # 合并更新当前生成的cases到现有数据
     for task_id, cases in frequent_cases.items():
-        report_entry = {
+        existing_entries[task_id] = {
             "task_id": task_id,
             "frequent_fail_cases": cases,
-            "final_score_C": final_score  
+            "final_score_C": final_score
         }
-        report.append(report_entry)
-    
-    # 写入JSONL文件 
-    with open(report_path, 'w') as f:
-        for entry in report:
+
+    # 按任务编号排序
+    sorted_entries = sorted(
+        existing_entries.values(),
+        key=lambda x: extract_task_number(x["task_id"])
+    )
+
+    # 原子化写入：先写临时文件再重命名
+    tmp_path = report_path + ".tmp"
+    with open(tmp_path, 'w') as f:
+        for entry in sorted_entries:
             f.write(json.dumps(entry) + '\n')
+    os.replace(tmp_path, report_path)  # 原子操作避免写入中断
+
+
+def test_report():
+    B_list = [18.420681 for _ in range(10)]
+    # 获取失败统计和所有task_id集合
+    all_correct_score = calculate_final_score(B_list)
+    fail_stats, all_task_ids = collect_fail_cases(SCORE_PATH, NUM_ITERATION, NUM_SAMPLES_PER_TASK)
+    # 传入所有task_id集合
+    frequent_cases = filter_frequent_fails(fail_stats, NUM_ITERATION, all_task_ids)
+    generate_report(all_correct_score, frequent_cases, REPORT_PATH)
+
+if __name__ == "__main__":
+    print("try to get a report line.")
+    test_report()
+    print("finish getting report line.")
