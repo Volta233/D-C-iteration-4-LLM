@@ -54,7 +54,7 @@ def calculate_and_log_scores(task_id: str,
     get_passk = False
     passk = {}
 
-    with open(score_log_path, 'w') as f:
+    with open(score_log_path, 'a') as f:
         for sample in task_samples:
             if get_passk == False:
                 passk = sample.get("pass_at_k", {})
@@ -93,17 +93,7 @@ def calculate_and_log_scores(task_id: str,
         penalty_factor = np.exp(-cv)  # 惩罚因子
         B_i = mu * penalty_factor
     
-    # 追加B_i记录
-    with open(score_log_path, 'a') as f:
-        f.write(json.dumps({
-            "task_id": task_id,
-            "iteration": iteration,
-            "pass@k": passk,
-            "B_score": round(B_i, 6),
-            "type": "B_scores_summary"
-        }) + '\n')
-    
-    return B_i
+    return B_i, passk
 
 def calculate_final_score(B_list: List[float]) -> float:
     """计算最终C评分"""
@@ -119,28 +109,58 @@ def calculate_final_score(B_list: List[float]) -> float:
     
     return total
 
-def collect_fail_cases(score_path, num_iterations, num_samples_per_task):
-    # 数据结构：{task_id: {"base": Counter, "plus": Counter}}
-    fail_stats = defaultdict(lambda: {"base": defaultdict(int), "plus": defaultdict(int)})
-    all_task_ids = set()  # 新增：存储所有遇到的task_id
+def collect_fail_cases(
+    score_dir: str,
+    num_iterations: int,
+    num_samples_per_task: int
+) -> Tuple[Dict[str, Dict[str, int]], List[str]]:
+    """
+    收集所有任务的失败案例统计，确保不遗漏任何任务
+    返回: (fail_stats, all_task_ids)
+        fail_stats: {task_id: {test_input: 失败次数}}
+        all_task_ids: 所有唯一任务ID列表（包含无失败案例的任务）
+    """
+    # 初始化失败统计：默认字典，自动为新任务创建空统计
+    fail_stats = defaultdict(lambda: defaultdict(int))
+    # 收集所有出现过的任务ID（确保无遗漏）
+    all_task_ids = set()
 
+    # 遍历所有迭代的score日志文件
     for i in range(num_iterations):
-        score_file = os.path.join(score_path, f"score_{i}.ndjson")
-        with open(score_file, 'r') as f:
-            for line in islice(f, num_samples_per_task):
-                entry = json.loads(line.strip())
-                task_id = entry["task_id"]
-                all_task_ids.add(task_id)  # 记录所有task_id
-
-                # 统计失败用例
-                for case in entry.get("base_fail_details", []):
-                    test_input = tuple(case["test_input"])
-                    fail_stats[task_id]["base"][test_input] += 1
-                for case in entry.get("plus_fail_details", []):
-                    test_input = tuple(case["test_input"])
-                    fail_stats[task_id]["plus"][test_input] += 1
+        score_path = os.path.join(score_dir, f"score_{i}.ndjson")
+        if not os.path.exists(score_path):
+            continue
+        
+        # 读取当前迭代的所有日志记录
+        with open(score_path, 'r') as f:
+            for line in f:
+                try:
+                    record = json.loads(line.strip())
+                    task_id = record.get("task_id")
+                    if not task_id:
+                        continue
                     
-    return fail_stats, all_task_ids  # 返回新增的all_task_ids
+                    # 将任务ID加入全局集合（确保不遗漏）
+                    all_task_ids.add(task_id)
+                    
+                    # 统计base失败案例
+                    for fail in record.get("base_fail_details", []):
+                        test_input = fail.get("test_input")
+                        if test_input:
+                            fail_stats[task_id][test_input] += 1
+                    
+                    # 统计plus失败案例
+                    for fail in record.get("plus_fail_details", []):
+                        test_input = fail.get("test_input")
+                        if test_input:
+                            fail_stats[task_id][test_input] += 1
+                except json.JSONDecodeError:
+                    continue
+                except Exception as e:
+                    continue
+
+    # 转换为列表返回（保持顺序一致）
+    return fail_stats, sorted(list(all_task_ids))
 
 
 def filter_frequent_fails(fail_stats, num_iterations, all_task_ids):
@@ -199,12 +219,9 @@ def generate_report(final_score, frequent_cases, report_path):
         key=lambda x: extract_task_number(x["task_id"])
     )
 
-    # 原子化写入：先写临时文件再重命名
-    tmp_path = report_path + ".tmp"
-    with open(tmp_path, 'w') as f:
+    with open(report_path, 'w') as f:
         for entry in sorted_entries:
-            f.write(json.dumps(entry) + '\n')
-    os.replace(tmp_path, report_path)  # 原子操作避免写入中断
+            f.write(json.dumps(entry, ensure_ascii=False) + '\n')
 
 
 def test_report():
