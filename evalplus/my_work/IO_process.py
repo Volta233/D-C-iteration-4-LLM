@@ -7,7 +7,7 @@ import numpy as np
 import re
 import ast
 import io
-from typing import Dict, List, Generator
+from typing import Dict, List, Generator, Any
 from evalplus.data.utils import stream_jsonl,write_jsonl
 from evalplus.my_work.hyperparams import *
 
@@ -73,3 +73,14 @@ def read_evaluated_samples(eval_file: str) -> Dict[str, List[Dict]]:
             "plus_fail_tests": record["plus_fail_tests"]
         })
     return samples
+
+def ensure_paths_exist() -> None:
+    """检查并创建所有必要的目录结构"""
+    for path in [PROBLEM_PATH, SCORE_PATH, os.path.dirname(REPORT_PATH)]:
+        os.makedirs(path, exist_ok=True)
+
+# 加载问题数据集
+def load_problems(iteration: int) -> Dict[str, Any]:
+    """加载指定迭代轮次的问题集"""
+    problem_path = os.path.join(PROBLEM_PATH, f"problems{iteration}.jsonl")
+    return read_problems(problem_path)

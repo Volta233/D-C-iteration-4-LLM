@@ -3,8 +3,9 @@ import re
 import ast
 import io
 import tokenize
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Dict
 from evalplus.sanitize import sanitize
+from evalplus.codegen import my_run_codegen
 from evalplus.my_work.hyperparams import *
 
 def generate_one_problem(prompt,entry_point,max_retries: int = 3):
@@ -111,3 +112,25 @@ def remove_comments_ast(code: str) -> str:
     if isinstance(reconstructed, bytes):
         return reconstructed.decode("utf-8")
     return reconstructed
+
+# 样本生成与重命名
+def generate_and_rename_samples(iteration: int, problems: Dict[str, Any]) -> str:
+    """
+    生成样本并重命名文件为迭代标识
+    返回新样本文件路径
+    """
+    samples_path = my_run_codegen(
+        model="gpt-4o-mini",
+        root=os.path.join(BASE_DIR, "my_data", "result"),
+        n_samples=NUM_SAMPLES_PER_TASK,
+        temperature=0.6,
+        greedy=False,
+        dataset="humaneval",
+        base_url=GPT_BASE_URL,
+        backend="openai",
+        HUMANEVAL_OVERRIDE_PATH=os.path.join(PROBLEM_PATH, f"problems{iteration}.jsonl")
+    )
+    # 重命名文件
+    new_path = samples_path.replace("samples.jsonl", f"samples{iteration}.jsonl")
+    os.rename(samples_path, new_path)
+    return new_path

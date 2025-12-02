@@ -3,6 +3,7 @@ import os
 import shutil
 import json
 from collections import defaultdict
+from evalplus.evaluate import evaluate
 import numpy as np
 from typing import Any, List, Optional, Tuple, Dict
 from evalplus.my_work.hyperparams import *
@@ -214,6 +215,18 @@ def test_report():
     # 传入所有task_id集合
     frequent_cases = filter_frequent_fails(fail_stats, NUM_ITERATION, all_task_ids)
     generate_report(all_correct_score, frequent_cases, REPORT_PATH)
+
+
+# 评估样本并返回结果路径
+def evaluate_samples(samples_path: str, iteration: int) -> str:
+    """执行样本评估并返回结果文件路径"""
+    evaluate(
+        dataset="humaneval",
+        samples=samples_path,
+        i_just_wanna_run=True,
+        HUMANEVAL_OVERRIDE_PATH=os.path.join(PROBLEM_PATH, f"problems{iteration}.jsonl")
+    )
+    return samples_path.replace(".jsonl", "_eval_results.json")
 
 if __name__ == "__main__":
     print("try to get a report line.")

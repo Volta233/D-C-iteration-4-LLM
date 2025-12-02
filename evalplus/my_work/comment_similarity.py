@@ -1,6 +1,7 @@
 import textdistance
 import re
 from itertools import combinations
+from typing import Any, List, Optional, Tuple, Dict
 
 def extract_docstring(prompt):
     """从prompt中提取三引号内的文档字符串"""
@@ -30,6 +31,19 @@ def hybrid_similarity(text1, text2):
 def get_similarity_score(text1, text2):
     scores = hybrid_similarity(text1, text2)
     return max(scores.values())
+
+# 计算语义相似度
+def compute_semantic_similarity(
+    new_problems: Dict[str, Any], 
+    original_docs: Dict[str, str]
+) -> float:
+    """计算新问题集与原始文档的平均语义相似度"""
+    similarities = []
+    for task_id, problem in new_problems.items():
+        new_doc = extract_docstring(problem["prompt"])
+        similarity = get_similarity_score(original_docs[task_id], new_doc)
+        similarities.append(similarity)
+    return sum(similarities) / len(similarities) if similarities else 0.0
 
 # 测试示例
 if __name__ == "__main__":
