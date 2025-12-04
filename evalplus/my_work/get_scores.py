@@ -120,7 +120,6 @@ def collect_fail_cases(
         fail_stats: {task_id: {test_input: 失败次数}}
         all_task_ids: 所有唯一任务ID列表（包含无失败案例的任务）
     """
-    # 初始化失败统计：默认字典，自动为新任务创建空统计
     fail_stats = defaultdict(lambda: defaultdict(int))
     # 收集所有出现过的任务ID（确保无遗漏）
     all_task_ids = set()
@@ -164,21 +163,17 @@ def collect_fail_cases(
 
 
 def filter_frequent_fails(fail_stats, num_iterations, all_task_ids):
-    threshold = 0
+    threshold = 0  # 只要失败过就记录（次数>0）
     frequent_cases = {}
     
-    # 遍历所有记录过的task_id（关键修改）
     for task_id in all_task_ids:
-        # 获取该task_id的计数器（可能不存在）
-        base_counts = fail_stats.get(task_id, {}).get("base", {})
-        plus_counts = fail_stats.get(task_id, {}).get("plus", {})
+        task_fail_counts = fail_stats.get(task_id, {})
         
         frequent = []
-        # 合并两种失败用例
-        for test_input in set(base_counts) | set(plus_counts):
-            total = base_counts.get(test_input, 0) + plus_counts.get(test_input, 0)
-            if total > threshold:
-                frequent.append({"test_input": list(test_input)})
+        # 遍历所有发生过失败的测试用例
+        for test_input, total_failures in task_fail_counts.items():
+            if total_failures > threshold:
+                frequent.append({"test_input": test_input}) 
                 
         frequent_cases[task_id] = frequent
         
