@@ -178,12 +178,11 @@ evalplus/_version.py
 *.png
 *.pdf
 trash-bin
-.bak
+*.bak
 evalplus.github.io
 evalplus_results/
 
 # my_filter
-evalplus/my_data
 Dockerfile
 .dockerignore
 tools
@@ -192,3 +191,5 @@ setup.*
 gallary
 docs
 
+!HumanEvalPlus.jsonl
+!evalplus/my_data/problem/problems0.jsonl
