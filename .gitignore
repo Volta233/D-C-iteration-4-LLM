@@ -189,7 +189,6 @@ Dockerfile
 tools
 tests
 setup.*
-requirements*
 gallary
 docs
 
