@@ -10,6 +10,8 @@ import io
 from typing import Dict, List, Generator, Any
 from evalplus.data.utils import stream_jsonl,write_jsonl
 from evalplus.my_work.hyperparams import *
+from collections import defaultdict
+from datetime import datetime
 
 def clean_humaneval_dir(task_id: str = None):
     """安全清理目录函数，只删除文件，保留文件夹结构，支持任务特定清理"""

@@ -39,5 +39,12 @@ BASE_URL = "https://svip.xty.app/v1"
 NUM_SAMPLES_PER_TASK = 3
 NUM_ITERATION = 3
 
-from datetime import datetime
-import numpy as np
+def extract_task_number(task_id):
+    """从task_id中提取数字部分进行排序"""
+    parts = task_id.split('/')
+    if len(parts) < 2:
+        return 0
+    try:
+        return int(parts[-1])
+    except ValueError:
+        return 0

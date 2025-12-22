@@ -2,11 +2,16 @@ import openai
 import re
 import ast
 import io
+import os
+import json
 import tokenize
 from typing import Any, List, Optional, Tuple, Dict
 from evalplus.sanitize import sanitize
 from evalplus.codegen import my_run_codegen
 from evalplus.my_work.hyperparams import *
+from evalplus.data.utils import stream_jsonl,write_jsonl
+from evalplus.evaluate import evaluate
+from evalplus.my_work.IO_process import *
 
 def generate_one_problem(prompt,entry_point,max_retries: int = 3):
     client = openai.OpenAI(

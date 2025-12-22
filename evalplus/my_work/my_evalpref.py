@@ -3,6 +3,7 @@ import os
 import json
 from pathlib import Path
 from typing import List, Dict, Any
+import numpy as np
 
 # 添加项目根目录到路径
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -30,8 +31,12 @@ def main():
     if start_id < 0 or end_id < start_id:
         print("Error: Invalid task ID range")
         sys.exit(1)
-        
+
     clean_humaneval_dir()
+
+    success_count = 0
+    failed_tasks = []
+
     print(f"Searching for tasks from HumanEval/{start_id} to HumanEval/{end_id}")
     # 加载指定范围内的任务
     tasks = load_humaneval_plus_tasks(start_id, end_id)
@@ -68,6 +73,9 @@ def main():
         print(f"{'='*60}")
         
         try:
+            # 在开始处理任务前，先清理该任务的特定目录
+            clean_humaneval_dir(task_id)
+            
             # 为当前任务创建初始问题文件
             create_task_problems_file([task], 0)
             
