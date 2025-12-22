@@ -37,4 +37,7 @@ BASE_URL = "https://svip.xty.app/v1"
 
 # 迭代参数
 NUM_SAMPLES_PER_TASK = 3
-NUM_ITERATION = 10
+NUM_ITERATION = 3
+
+from datetime import datetime
+import numpy as np
