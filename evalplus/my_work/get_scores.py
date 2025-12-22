@@ -239,6 +239,153 @@ def evaluate_samples(samples_path: str, iteration: int) -> str:
     )
     return samples_path.replace(".jsonl", "_eval_results.json")
 
+def evaluate_samples_single_task(samples_path: str, iteration: int, task_id: str) -> str:
+    """评估单个任务的样本"""
+    # 创建临时问题文件（只包含当前任务）
+    problems = load_problems(iteration)
+    if task_id in problems:
+        temp_problem_path = os.path.join(PROBLEM_PATH, f"temp_problems{iteration}.jsonl")
+        write_jsonl(temp_problem_path, [problems[task_id]])
+        
+        evaluate(
+            dataset="humaneval",
+            samples=samples_path,
+            i_just_wanna_run=True,
+            HUMANEVAL_OVERRIDE_PATH=temp_problem_path
+        )
+        
+        # 清理临时文件
+        if os.path.exists(temp_problem_path):
+            os.remove(temp_problem_path)
+    
+    return samples_path.replace(".jsonl", "_eval_results.json")
+
+def calculate_and_log_scores_single_task(task_id: str, task_samples: List[Dict], 
+                                       problem: Dict, iteration: int) -> Tuple[float, Dict]:
+    """为单个任务计算分数"""
+    task_score_dir = get_task_score_path(task_id)
+    os.makedirs(task_score_dir, exist_ok=True)
+    
+    score_log_path = os.path.join(task_score_dir, f"score_{iteration}.ndjson")
+    
+    # 预计算总测试数
+    total_base = len(problem["base_input"])
+    total_plus = len(problem["plus_input"])
+    total_tests = total_base + total_plus
+    epsilon = 1e-8
+    
+    A_list = []
+    get_passk = False
+    passk = {}
+
+    with open(score_log_path, 'a') as f:
+        for sample in task_samples:
+            if not get_passk:
+                passk = sample.get("pass_at_k", {})
+                get_passk = True
+            
+            # 计算基础指标
+            W_base = len(sample["base_fail_tests"])
+            W_plus = len(sample["plus_fail_tests"])
+            
+            # 通过率计算
+            pass_rate = 1 - (W_base + W_plus) / total_tests if total_tests else 0.0
+            pass_rate = max(0.0, min(1.0, pass_rate))  # 确保在[0,1]区间
+            
+            # A_j评分计算
+            denominator = 1 - pass_rate + epsilon
+            A_j = np.log(pass_rate / denominator) if denominator != 0 else 0.0
+            A_list.append(A_j)
+            
+            # 构建日志记录
+            log_record = {
+                "task_id": task_id,
+                "iteration": iteration,
+                "composite_score": round(A_j, 6),
+                "base_fail_details": [{"test_input": t} for t in sample["base_fail_tests"]],
+                "plus_fail_details": [{"test_input": t} for t in sample["plus_fail_tests"]]
+            }
+            f.write(json.dumps(log_record) + '\n')
+    
+    # 计算B_i评分
+    if len(A_list) == 0:
+        B_i = 0.0
+    else:
+        A_arr = np.array(A_list)
+        mu = A_arr.mean()
+        sigma = A_arr.std(ddof=0)  # 总体标准差
+        cv = sigma / mu if mu != 0 else float('inf')  # 变异系数
+        penalty_factor = np.exp(-cv) if cv != float('inf') else 0.0  # 惩罚因子
+        B_i = mu * penalty_factor
+    
+    return B_i, passk
+
+def collect_fail_cases_single_task(task_id: str, num_iterations: int) -> Tuple[Dict[str, Dict[str, int]], List[str]]:
+    """收集单个任务的失败案例"""
+    from collections import defaultdict
+    
+    fail_stats = defaultdict(lambda: defaultdict(int))
+    task_score_dir = get_task_score_path(task_id)
+    
+    # 遍历所有迭代的score日志文件
+    for i in range(num_iterations):
+        score_path = os.path.join(task_score_dir, f"score_{i}.ndjson")
+        if not os.path.exists(score_path):
+            continue
+        
+        # 读取当前迭代的所有日志记录
+        with open(score_path, 'r') as f:
+            for line in f:
+                try:
+                    record = json.loads(line.strip())
+                    
+                    # 统计base失败案例
+                    for fail in record.get("base_fail_details", []):
+                        test_input = fail.get("test_input")
+                        if test_input:
+                            fail_stats[task_id][test_input] += 1
+                    
+                    # 统计plus失败案例
+                    for fail in record.get("plus_fail_details", []):
+                        test_input = fail.get("test_input")
+                        if test_input:
+                            fail_stats[task_id][test_input] += 1
+                except json.JSONDecodeError:
+                    continue
+                except Exception:
+                    continue
+
+    return fail_stats, [task_id]
+
+def generate_task_report(task_id: str, final_score: float, frequent_cases: Dict, 
+                        task_metrics: List[Dict]) -> None:
+    """生成单个任务的报告"""
+    task_report_dir = os.path.join(SCORE_PATH, task_id.replace("/", "_"))
+    os.makedirs(task_report_dir, exist_ok=True)
+    
+    report_path = os.path.join(task_report_dir, "task_report.json")
+    
+    report_data = {
+        "task_id": task_id,
+        "final_score": final_score,
+        "frequent_fail_cases": frequent_cases.get(task_id, []),
+        "iterations": NUM_ITERATION,
+        "metrics_per_iteration": task_metrics
+    }
+    
+    with open(report_path, 'w') as f:
+        json.dump(report_data, f, indent=2)
+    
+    # 同时写入全局报告文件
+    global_report_path = os.path.join(SCORE_PATH, "global_report.ndjson")
+    with open(global_report_path, 'a') as f:
+        f.write(json.dumps({
+            "task_id": task_id,
+            "final_score": final_score,
+            "timestamp": str(datetime.now())
+        }) + '\n')
+
+
 if __name__ == "__main__":
     print("try to get a report line.")
     test_report()

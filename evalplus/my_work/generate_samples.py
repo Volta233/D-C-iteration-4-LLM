@@ -135,3 +135,33 @@ def generate_and_rename_samples(iteration: int, problems: Dict[str, Any]) -> str
     new_path = samples_path.replace("samples.jsonl", f"samples{iteration}.jsonl")
     os.rename(samples_path, new_path)
     return new_path
+
+def generate_and_rename_samples_single_task(iteration: int, task_id: str, problem: Dict) -> str:
+    """为单个任务生成样本"""
+    # 创建临时问题文件（只包含当前任务）
+    temp_problem_path = os.path.join(PROBLEM_PATH, f"temp_problems{iteration}.jsonl")
+    write_jsonl(temp_problem_path, [problem])
+    
+    samples_path = my_run_codegen(
+        model="gpt-4o-mini",
+        root=os.path.join(BASE_DIR, "my_data", "result"),
+        n_samples=NUM_SAMPLES_PER_TASK,
+        temperature=0.6,
+        greedy=False,
+        dataset="humaneval",
+        base_url=GPT_BASE_URL,
+        backend="openai",
+        HUMANEVAL_OVERRIDE_PATH=temp_problem_path,
+        resume=False
+    )
+    
+    # 重命名文件以包含任务ID
+    task_safe_id = task_id.replace("/", "_")
+    new_path = samples_path.replace("samples.jsonl", f"samples{iteration}_{task_safe_id}.jsonl")
+    os.rename(samples_path, new_path)
+    
+    # 清理临时文件
+    if os.path.exists(temp_problem_path):
+        os.remove(temp_problem_path)
+    
+    return new_path
