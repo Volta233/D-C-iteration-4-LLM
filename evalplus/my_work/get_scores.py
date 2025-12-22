@@ -228,7 +228,6 @@ def test_report():
     frequent_cases = filter_frequent_fails(fail_stats, NUM_ITERATION, all_task_ids)
     generate_report(all_correct_score, frequent_cases, REPORT_PATH)
 
-
 # 评估样本并返回结果路径
 def evaluate_samples(samples_path: str, iteration: int) -> str:
     """执行样本评估并返回结果文件路径"""

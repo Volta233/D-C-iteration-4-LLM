@@ -264,7 +264,7 @@ def my_run_codegen(
     bs: Optional[int] = None,
     n_samples: int = 1,
     temperature: float = 0.2,
-    resume: bool = True,
+    resume: bool = False,
     greedy: bool = False,
     id_range: List = None,
     version: str = "default",
@@ -295,10 +295,17 @@ def my_run_codegen(
         identifier += f"-{evalperf_type}"
 
     target_path = os.path.join(root, dataset, identifier)
+    
     if jsonl_fmt:
         target_path += ".jsonl"
     else:
         os.makedirs(target_path, exist_ok=True)
+
+    if not resume and os.path.exists(target_path):
+        os.remove(target_path)
+        raw_target_path = target_path.replace(".jsonl", ".raw.jsonl")
+        if os.path.exists(raw_target_path):
+            os.remove(raw_target_path)
 
     if dataset == "humaneval":
         dataset_dict = get_human_eval_plus(version=version,HUMANEVAL_OVERRIDE_PATH=HUMANEVAL_OVERRIDE_PATH)
@@ -311,25 +318,25 @@ def my_run_codegen(
     else:
         raise ValueError(f"Invalid dataset {dataset}")
 
-    all_tasks_complete = False
-    if jsonl_fmt and os.path.isfile(target_path):
-        task_counts = {}
-        with open(target_path, "r") as f:
-            for line in f:
-                if not line.strip():
-                    continue
-                data = json.loads(line)
-                task_id = data["task_id"]
-                task_counts[task_id] = task_counts.get(task_id, 0) + 1
+    # all_tasks_complete = False
+    # if jsonl_fmt and os.path.isfile(target_path):
+    #     task_counts = {}
+    #     with open(target_path, "r") as f:
+    #         for line in f:
+    #             if not line.strip():
+    #                 continue
+    #             data = json.loads(line)
+    #             task_id = data["task_id"]
+    #             task_counts[task_id] = task_counts.get(task_id, 0) + 1
 
-            all_tasks_complete = all(
-                task_counts.get(task_id, 0) >= n_samples
-                for task_id in dataset_dict.keys()
-            )
+    #         all_tasks_complete = all(
+    #             task_counts.get(task_id, 0) >= n_samples
+    #             for task_id in dataset_dict.keys()
+    #         )
 
-    if all_tasks_complete:
-        print("All samples are already cached. Skipping codegen.")
-        return target_path
+    # if all_tasks_complete:
+    #     print("All samples are already cached. Skipping codegen.")
+    #     return target_path
 
     if greedy and (temperature != 0 or bs != 1 or n_samples != 1):
         temperature = 0.0

@@ -11,31 +11,59 @@ from typing import Dict, List, Generator, Any
 from evalplus.data.utils import stream_jsonl,write_jsonl
 from evalplus.my_work.hyperparams import *
 
-def clean_humaneval_dir():
-    """安全清理目录函数，保留符合正则模式的文件"""
+def clean_humaneval_dir(task_id: str = None):
+    """安全清理目录函数，保留符合正则模式的文件，支持任务特定清理"""
     pattern = re.compile(r'^gpt-4o-mini_openai_temp_0\..+\.raw\.jsonl$')
     
-    for filename in os.listdir(RESULT_PATH):
-        if pattern.match(filename):  # 匹配目标文件名模式则跳过
-            continue
-        file_path = os.path.join(RESULT_PATH, filename)
-        try:
-            if os.path.isfile(file_path):
-                os.remove(file_path)
-            elif os.path.isdir(file_path):
-                shutil.rmtree(file_path)
-        except Exception as e:
-            print(f"Error deleting {file_path}: {str(e)}")
+    if task_id:
+        # 清理特定任务的目录
+        task_score_dir = get_task_score_path(task_id)
+        task_result_dir = get_task_result_path(task_id)
+        
+        # 清理score目录
+        if os.path.exists(task_score_dir):
+            for filename in os.listdir(task_score_dir):
+                file_path = os.path.join(task_score_dir, filename)
+                try:
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+                except Exception as e:
+                    print(f"Error deleting {file_path}: {str(e)}")
+        
+        # 清理result目录（保留模式匹配的文件）
+        if os.path.exists(task_result_dir):
+            for filename in os.listdir(task_result_dir):
+                if pattern.match(filename):  # 匹配目标文件名模式则跳过
+                    continue
+                file_path = os.path.join(task_result_dir, filename)
+                try:
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+                except Exception as e:
+                    print(f"Error deleting {file_path}: {str(e)}")
+    else:
+        # 原有逻辑：清理整个目录
+        for filename in os.listdir(RESULT_PATH):
+            if pattern.match(filename):  # 匹配目标文件名模式则跳过
+                continue
+            file_path = os.path.join(RESULT_PATH, filename)
+            try:
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                print(f"Error deleting {file_path}: {str(e)}")
 
-    for filename in os.listdir(SCORE_PATH) :
-        file_path = os.path.join(SCORE_PATH, filename)
-        try:
-            if os.path.isfile(file_path):
-                os.remove(file_path)
-            elif os.path.isdir(file_path):
-                shutil.rmtree(file_path)
-        except Exception as e:
-            print(f"Error deleting {file_path}: {str(e)}")
+        for filename in os.listdir(SCORE_PATH):
+            file_path = os.path.join(SCORE_PATH, filename)
+            try:
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                print(f"Error deleting {file_path}: {str(e)}")
 
 
 def read_problems(evalset_file: str = PROBLEM_PATH) -> Dict[str, Dict]:

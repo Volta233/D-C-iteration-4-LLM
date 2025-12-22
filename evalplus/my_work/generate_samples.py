@@ -128,7 +128,8 @@ def generate_and_rename_samples(iteration: int, problems: Dict[str, Any]) -> str
         dataset="humaneval",
         base_url=GPT_BASE_URL,
         backend="openai",
-        HUMANEVAL_OVERRIDE_PATH=os.path.join(PROBLEM_PATH, f"problems{iteration}.jsonl")
+        HUMANEVAL_OVERRIDE_PATH=os.path.join(PROBLEM_PATH, f"problems{iteration}.jsonl"),
+        resume=False
     )
     # 重命名文件
     new_path = samples_path.replace("samples.jsonl", f"samples{iteration}.jsonl")
