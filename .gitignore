@@ -194,3 +194,7 @@ docs
 !HumanEvalPlus.jsonl
 !HumanEvalPlus1.jsonl
 !HumanEvalPlus2.jsonl
+
+my_data/*
+!my_data/**/
+!my_data/.gitkeep

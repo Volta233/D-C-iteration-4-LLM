@@ -14,12 +14,15 @@ from collections import defaultdict
 from datetime import datetime
 
 def clean_humaneval_dir(task_id: str = None):
-    """安全清理目录函数，删除所有.bak文件，保留必要的文件结构"""
+    """安全清理目录函数，保留必要的文件结构"""
     # 定义需要保留的文件模式
     preserve_patterns = [
         r'^gpt-4o-mini_openai_temp_0\..+\.raw\.jsonl$',  # 原始样本文件
         r'^global_report\.ndjson$',  # 全局报告
         r'^problems\d+\.jsonl$',  # 问题文件
+        r'^samples\d+.*\.jsonl$',  # 样本文件
+        r'^samples\d+.*_eval_results\.json$',  # 评估结果文件
+        r'^\.gitkeep$',
     ]
     
     # 编译正则表达式
@@ -43,18 +46,15 @@ def clean_humaneval_dir(task_id: str = None):
                     file_path = os.path.join(root, file)
                     try:
                         os.remove(file_path)
+                        print(f"Deleted .bak file: {file_path}")
                     except Exception as e:
                         print(f"Error deleting {file_path}: {str(e)}")
     
-    def clean_directory(directory: str):
-        """清理单个目录"""
+    def clean_residual_files(directory: str):
+        """清理残留的非保留文件"""
         if not os.path.exists(directory):
             return
             
-        # 首先删除所有.bak文件
-        delete_bak_files(directory)
-        
-        # 然后清理其他非保留文件
         for filename in os.listdir(directory):
             file_path = os.path.join(directory, filename)
             
@@ -62,30 +62,55 @@ def clean_humaneval_dir(task_id: str = None):
                 if os.path.isfile(file_path):
                     if not should_preserve(filename):
                         os.remove(file_path)
-                        print(f"Deleted: {file_path}")
-                # 注意：这里不删除目录，只删除文件
+                        print(f"Deleted residual file: {file_path}")
+                elif os.path.isdir(file_path):
+                    # 检查是否是空目录
+                    if not os.listdir(file_path):
+                        os.rmdir(file_path)
+                        print(f"Deleted empty directory: {file_path}")
             except Exception as e:
                 print(f"Error processing {file_path}: {str(e)}")
     
     if task_id:
-        # 清理特定任务的目录
+        # 清理特定任务的相关目录
         task_score_dir = get_task_score_path(task_id)
-        task_result_dir = get_task_result_path(task_id)
         
-        clean_directory(task_score_dir)
-        clean_directory(task_result_dir)
+        # 清理RESULT_PATH下的.bak文件
+        delete_bak_files(RESULT_PATH)
         
-        # 同时清理问题目录中的临时文件（但不删除问题文件本身）
-        clean_directory(PROBLEM_PATH)
+        # 清理任务特定的score目录
+        delete_bak_files(task_score_dir)
+        clean_residual_files(task_score_dir)
+        
+        # 清理问题目录中的临时文件
+        clean_residual_files(PROBLEM_PATH)
         
     else:
         # 清理所有相关目录
         directories_to_clean = [RESULT_PATH, SCORE_PATH, PROBLEM_PATH]
         
         for directory in directories_to_clean:
-            clean_directory(directory)
+            delete_bak_files(directory)
+            clean_residual_files(directory)
         
         print("Cleaned all directories, preserving essential files and removing .bak files")
+
+def delete_empty_task_directories():
+    """删除RESULT_PATH下所有空的任务目录"""
+    if not os.path.exists(RESULT_PATH):
+        return
+        
+    for item in os.listdir(RESULT_PATH):
+        item_path = os.path.join(RESULT_PATH, item)
+        if os.path.isdir(item_path):
+            # 检查是否是任务目录（包含HumanEval_格式）
+            if "HumanEval_" in item:
+                try:
+                    if not os.listdir(item_path):  # 如果是空目录
+                        os.rmdir(item_path)
+                        print(f"Deleted empty task directory: {item_path}")
+                except OSError as e:
+                    print(f"Error deleting directory {item_path}: {e}")
 
 
 def read_problems(evalset_file: str = PROBLEM_PATH) -> Dict[str, Dict]:

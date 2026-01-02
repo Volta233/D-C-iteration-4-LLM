@@ -33,7 +33,8 @@ def main():
         sys.exit(1)
 
     clean_humaneval_dir()
-
+    delete_empty_task_directories()
+    
     success_count = 0
     failed_tasks = []
 
