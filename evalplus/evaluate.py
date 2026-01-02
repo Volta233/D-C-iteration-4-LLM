@@ -266,6 +266,9 @@ def evaluate(
 
                 def get_failed_tests(stat, details, inputs) -> List[Any]:
                     if stat == PASS or not details:
+                        # 修复：当stat不是PASS但details为空时，返回所有输入
+                        if stat != PASS and not details:
+                            return inputs[:]  # 返回所有输入作为失败测试
                         return []
 
                     if test_details:
@@ -277,6 +280,12 @@ def evaluate(
                     return [inputs[len(details) - 1]]
 
                 base_stat, base_details = res["base"]
+                if len(base_details) != len(problems[task_id]["base_input"]):
+                    print(f"WARNING: Details length mismatch for {task_id}: "
+                            f"details={len(base_details)}, inputs={len(problems[task_id]['base_input'])}")
+                    # 用False填充缺失的details
+                    base_details = [False] * len(problems[task_id]["base_input"])
+
                 base_fail_tests = get_failed_tests(
                     base_stat, base_details, problems[task_id]["base_input"]
                 )
