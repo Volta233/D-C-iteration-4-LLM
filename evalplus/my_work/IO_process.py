@@ -14,49 +14,78 @@ from collections import defaultdict
 from datetime import datetime
 
 def clean_humaneval_dir(task_id: str = None):
-    """安全清理目录函数，只删除文件，保留文件夹结构，支持任务特定清理"""
-    pattern = re.compile(r'^gpt-4o-mini_openai_temp_0\..+\.raw\.jsonl$')  # 保留的文件模式
+    """安全清理目录函数，删除所有.bak文件，保留必要的文件结构"""
+    # 定义需要保留的文件模式
+    preserve_patterns = [
+        r'^gpt-4o-mini_openai_temp_0\..+\.raw\.jsonl$',  # 原始样本文件
+        r'^global_report\.ndjson$',  # 全局报告
+        r'^problems\d+\.jsonl$',  # 问题文件
+    ]
+    
+    # 编译正则表达式
+    preserve_regexes = [re.compile(pattern) for pattern in preserve_patterns]
+    
+    def should_preserve(filename: str) -> bool:
+        """检查文件是否应该保留"""
+        for regex in preserve_regexes:
+            if regex.match(filename):
+                return True
+        return False
+    
+    def delete_bak_files(directory: str):
+        """递归删除目录中的所有.bak文件"""
+        if not os.path.exists(directory):
+            return
+            
+        for root, dirs, files in os.walk(directory):
+            for file in files:
+                if file.endswith('.bak') or '.bak.' in file:
+                    file_path = os.path.join(root, file)
+                    try:
+                        os.remove(file_path)
+                    except Exception as e:
+                        print(f"Error deleting {file_path}: {str(e)}")
+    
+    def clean_directory(directory: str):
+        """清理单个目录"""
+        if not os.path.exists(directory):
+            return
+            
+        # 首先删除所有.bak文件
+        delete_bak_files(directory)
+        
+        # 然后清理其他非保留文件
+        for filename in os.listdir(directory):
+            file_path = os.path.join(directory, filename)
+            
+            try:
+                if os.path.isfile(file_path):
+                    if not should_preserve(filename):
+                        os.remove(file_path)
+                        print(f"Deleted: {file_path}")
+                # 注意：这里不删除目录，只删除文件
+            except Exception as e:
+                print(f"Error processing {file_path}: {str(e)}")
     
     if task_id:
         # 清理特定任务的目录
         task_score_dir = get_task_score_path(task_id)
         task_result_dir = get_task_result_path(task_id)
         
-        # 清理score目录：只删除文件，不删除目录
-        if os.path.exists(task_score_dir):
-            for filename in os.listdir(task_score_dir):
-                file_path = os.path.join(task_score_dir, filename)
-                try:
-                    if os.path.isfile(file_path):  # 只删除文件，忽略目录
-                        os.remove(file_path)
-                except Exception as e:
-                    print(f"Error deleting {file_path}: {str(e)}")
+        clean_directory(task_score_dir)
+        clean_directory(task_result_dir)
         
-        # 清理result目录：只删除文件，保留模式匹配的文件
-        if os.path.exists(task_result_dir):
-            for filename in os.listdir(task_result_dir):
-                file_path = os.path.join(task_result_dir, filename)
-                try:
-                    if os.path.isfile(file_path):
-                        if pattern.match(filename):  # 匹配目标文件名模式则跳过
-                            continue
-                        os.remove(file_path)
-                except Exception as e:
-                    print(f"Error deleting {file_path}: {str(e)}")
+        # 同时清理问题目录中的临时文件（但不删除问题文件本身）
+        clean_directory(PROBLEM_PATH)
+        
     else:
-        # 清理整个RESULT_PATH和SCORE_PATH，但只删除文件，不删除文件夹
-        for path in [RESULT_PATH, SCORE_PATH]:
-            if os.path.exists(path):
-                for filename in os.listdir(path):
-                    file_path = os.path.join(path, filename)
-                    try:
-                        if os.path.isfile(file_path):  # 只删除文件
-                            if pattern.match(filename):  # 保留模式匹配的文件
-                                continue
-                            os.remove(file_path)
-                        # 如果是目录，跳过不删除
-                    except Exception as e:
-                        print(f"Error deleting {file_path}: {str(e)}")
+        # 清理所有相关目录
+        directories_to_clean = [RESULT_PATH, SCORE_PATH, PROBLEM_PATH]
+        
+        for directory in directories_to_clean:
+            clean_directory(directory)
+        
+        print("Cleaned all directories, preserving essential files and removing .bak files")
 
 
 def read_problems(evalset_file: str = PROBLEM_PATH) -> Dict[str, Dict]:

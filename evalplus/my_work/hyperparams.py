@@ -36,8 +36,8 @@ API_KEY = "sk-viODA4qbv0KsnroB8950Df3602F84d1fB1Bb2b53803151E1"
 BASE_URL = "https://svip.xty.app/v1"
 
 # 迭代参数
-NUM_SAMPLES_PER_TASK = 3
-NUM_ITERATION = 3
+NUM_SAMPLES_PER_TASK = 30
+NUM_ITERATION = 10
 
 def extract_task_number(task_id):
     """从task_id中提取数字部分进行排序"""
