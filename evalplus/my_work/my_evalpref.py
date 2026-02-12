@@ -193,6 +193,13 @@ def run_single_task_evaluation(task_id: str):
         generate_task_report(task_id, final_score, frequent_cases, task_metrics)
         
         print(f"  Task {task_id} completed. Final score: {final_score:.6f}")
+
+        try:
+            from evalplus.my_work.IO_process import organize_eval_results
+            organize_eval_results(RESULT_PATH)
+            print(f"  Organized result files for {task_id}")
+        except Exception as e:
+            print(f"  Warning: Failed to organize result files: {e}")
     else:
         print(f"  Warning: No evaluation results for {task_id}")
 

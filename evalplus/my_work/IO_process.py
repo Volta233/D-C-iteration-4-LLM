@@ -74,15 +74,13 @@ def clean_humaneval_dir(task_id: str = None):
     if task_id:
         # 清理特定任务的相关目录
         task_score_dir = get_task_score_path(task_id)
-        
+        task_result_dir = get_task_result_path(task_id)
         # 清理RESULT_PATH下的.bak文件
         delete_bak_files(RESULT_PATH)
-        
-        # 清理任务特定的score目录
+        delete_bak_files(task_result_dir)
         delete_bak_files(task_score_dir)
         clean_residual_files(task_score_dir)
-        
-        # 清理问题目录中的临时文件
+        clean_residual_files(task_result_dir)
         clean_residual_files(PROBLEM_PATH)
         
     else:
@@ -259,3 +257,132 @@ def setup_task_directories(tasks: List[Dict]):
         os.makedirs(task_result_dir, exist_ok=True)
         
         print(f"Created directories for {task_id}")
+
+def organize_eval_results(result_dir: str = RESULT_PATH):
+    """
+    整理評測結果文件，分兩階段確保文件移動順序正確：
+    1. 掃描並重命名所有 .bak 文件，並記錄其對應的 task_id。
+    2. 將所有相關文件移動到對應的任務文件夾中。
+    """
+    import re
+    import os
+    import json
+    import shutil
+    from collections import defaultdict
+
+    files_to_move_by_task = defaultdict(list)
+    source_jsonl_files = {}
+    source_raw_jsonl_files = {}
+
+    print("開始整理評測結果文件...")
+
+    # --- 第一階段：掃描並重命名所有 .bak 文件，並記錄對應的 task_id ---
+    for filename in os.listdir(result_dir):
+        filepath = os.path.join(result_dir, filename)
+
+        # 1. 匹配並處理所有以 `.bak` 結尾的 eval_results 文件
+        bak_pattern = r'^(gpt-4o-mini_openai_temp_0\.6_eval_results\.json)(\.bak)+$'
+        bak_match = re.match(bak_pattern, filename)
+        if bak_match:
+            base_name = bak_match.group(1)  # 原始文件名
+            bak_suffix = bak_match.group(2)  # 如 '.bak.bak'
+            bak_count = bak_suffix.count('.bak')
+            iteration_num = 9 - bak_count  # 計算迭代編號
+
+            # 新文件名
+            new_filename = f"gpt-4o-mini_openai_temp_0.6_eval_results_{iteration_num}.json"
+            new_filepath = os.path.join(result_dir, new_filename)
+
+            # 重命名文件
+            try:
+                os.rename(filepath, new_filepath)
+                print(f"已重命名: {filename} -> {new_filename}")
+                renamed_file = new_filename
+                renamed_filepath = new_filepath
+            except OSError as e:
+                print(f"重命名 {filename} 時出錯: {e}")
+                continue
+
+            samples_filename = filename.replace('_eval_results.json', '.jsonl').replace('.bak', '')
+            samples_filepath = os.path.join(result_dir, samples_filename)
+
+            task_id = None
+            if os.path.exists(samples_filepath):
+                # 記錄源文件路徑，供第二階段移動
+                source_jsonl_files[samples_filename] = samples_filepath
+                # 從樣本文件讀取 task_id
+                try:
+                    with open(samples_filepath, 'r') as f:
+                        first_line = f.readline().strip()
+                        if first_line:
+                            data = json.loads(first_line)
+                            task_id = data.get("task_id")
+                except (json.JSONDecodeError, IOError) as e:
+                    print(f"從 {samples_filename} 讀取 task_id 時出錯: {e}")
+                    # 無法獲取 task_id，跳過此文件
+                    continue
+            else:
+                print(f"警告: 未找到對應的樣本文件: {samples_filename}")
+                continue
+
+            if not task_id:
+                print(f"警告: 無法從 {samples_filename} 提取 task_id")
+                continue
+
+            # 計算目標文件夾名稱
+            target_folder_name = task_id.replace("/", "_")
+            # 將此重命名後的文件添加到待移動列表
+            files_to_move_by_task[target_folder_name].append(
+                (renamed_filepath, renamed_file)
+            )
+            # 同時將對應的 .jsonl 和 .raw.jsonl 文件也加入待移動列表（記錄路徑，第二階段移動）
+            raw_filename = samples_filename.replace('.jsonl', '.raw.jsonl')
+            raw_filepath = os.path.join(result_dir, raw_filename)
+            if os.path.exists(raw_filepath):
+                source_raw_jsonl_files[raw_filename] = raw_filepath
+
+        # 2. 記錄原始的非 .bak 後綴的樣本文件 (.jsonl 和 .raw.jsonl)，供第二階段移動
+        elif filename == 'gpt-4o-mini_openai_temp_0.6.jsonl':
+            source_jsonl_files[filename] = os.path.join(result_dir, filename)
+        elif filename == 'gpt-4o-mini_openai_temp_0.6.raw.jsonl':
+            source_raw_jsonl_files[filename] = os.path.join(result_dir, filename)
+
+    # --- 第二階段：將所有記錄的文件移動到對應的任務文件夾 ---
+    for target_folder_name, file_list in files_to_move_by_task.items():
+        target_folder_path = os.path.join(result_dir, target_folder_name)
+        os.makedirs(target_folder_path, exist_ok=True)
+
+        # 移動第一階段記錄的重命名後的結果文件
+        for src_path, dst_filename in file_list:
+            dst_path = os.path.join(target_folder_path, dst_filename)
+            try:
+                shutil.move(src_path, dst_path)
+
+            except (OSError, shutil.Error) as e:
+                print(f"移動 {src_path} 到 {dst_path} 時出錯: {e}")
+
+        fixed_jsonl_filename = 'gpt-4o-mini_openai_temp_0.6.jsonl'
+        fixed_raw_jsonl_filename = 'gpt-4o-mini_openai_temp_0.6.raw.jsonl'
+
+        # 移動 .jsonl 文件
+        if fixed_jsonl_filename in source_jsonl_files:
+            src = source_jsonl_files[fixed_jsonl_filename]
+            dst = os.path.join(target_folder_path, fixed_jsonl_filename)
+            if os.path.exists(src):
+                try:
+                    shutil.move(src, dst)
+                except (OSError, shutil.Error) as e:
+                    print(f"移動 {src} 到 {dst} 時出錯: {e}")
+
+        # 移動 .raw.jsonl 文件
+        if fixed_raw_jsonl_filename in source_raw_jsonl_files:
+            src = source_raw_jsonl_files[fixed_raw_jsonl_filename]
+            dst = os.path.join(target_folder_path, fixed_raw_jsonl_filename)
+            if os.path.exists(src):
+                try:
+                    shutil.move(src, dst)
+                    print(f"已移動: {fixed_raw_jsonl_filename} -> {target_folder_name}/")
+                except (OSError, shutil.Error) as e:
+                    print(f"移動 {src} 到 {dst} 時出錯: {e}")
+
+    print("文件整理完成。")
