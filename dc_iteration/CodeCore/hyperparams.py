@@ -33,15 +33,13 @@ if not os.path.exists(report_dir):
     os.makedirs(report_dir)
     print(f"Created report directory: {report_dir}")
 
-# 模型配置
-GPT_BASE_URL = "https://svip.xty.app/v1"
-MODEL_NAME = "gpt-4o-mini"
-API_KEY = "sk-viODA4qbv0KsnroB8950Df3602F84d1fB1Bb2b53803151E1"
-BASE_URL = "https://svip.xty.app/v1"
-
 # 迭代参数
 NUM_SAMPLES_PER_TASK = 3
 NUM_ITERATION = 2
+
+# 运行时间限制
+DEFAULT_GT_TIME_LIMIT_FACTOR = 4.0
+DEFAULT_MIN_TIME_LIMIT = 1.0
 
 
 def extract_task_number(task_id):
@@ -53,3 +51,25 @@ def extract_task_number(task_id):
         return int(parts[-1])
     except ValueError:
         return 0
+
+# ============ 模型配置 (从环境变量读取) ============
+# 重要：以下敏感信息不再硬编码。请通过环境变量设置。
+# 示例：export OPENAI_API_KEY=“your_api_key_here”
+
+# OpenAI API 密钥 (必需)
+# 从环境变量 `OPENAI_API_KEY` 读取
+API_KEY = os.getenv("OPENAI_API_KEY")
+if API_KEY is None:
+    print("警告: OPENAI_API_KEY 环境变量未设置。程序将无法调用 OpenAI API。")
+
+# OpenAI 模型名称 (默认值: gpt-4o-mini)
+# 可通过设置 `OPENAI_MODEL_NAME` 环境变量覆盖
+MODEL_NAME = os.getenv("OPENAI_MODEL_NAME", "gpt-4o-mini")
+
+# OpenAI API 基础URL (默认值: https://api.openai.com/v1，官方标准端点)
+# 可通过设置 `OPENAI_BASE_URL` 环境变量覆盖
+BASE_URL = os.getenv("OPENAI_BASE_URL", "https://svip.xty.app/v1")
+
+# GPT 基础URL (用于代码生成任务，默认值与 BASE_URL 保持一致)
+# 可通过设置 `GPT_BASE_URL` 环境变量覆盖
+GPT_BASE_URL = os.getenv("GPT_BASE_URL", BASE_URL)

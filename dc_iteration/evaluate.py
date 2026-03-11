@@ -14,12 +14,12 @@ import numpy as np
 from termcolor import cprint
 from tqdm import tqdm
 
-from dc_iteration.config import *
 from dc_iteration.data import (
     get_human_eval_plus,
     get_human_eval_plus_hash,
     load_solutions,
 )
+from dc_iteration.CodeCore.hyperparams import *
 from dc_iteration.data.utils import CACHE_DIR
 from dc_iteration.data.humaneval import get_original_human_eval_plus, get_original_human_eval_plus_hash
 from dc_iteration.eval import (
