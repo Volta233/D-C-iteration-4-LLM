@@ -198,3 +198,5 @@ docs
 my_data/*
 !my_data/**/
 !my_data/.gitkeep
+
+store_data/*
