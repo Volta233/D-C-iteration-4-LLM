@@ -1,6 +1,7 @@
 #!/bin/bash
 # 在项目根目录运行评测任务
 # 用法: ./run.sh <start_task_id> <end_task_id>
+# chmod +x run.sh
 # 示例: ./run.sh 0 66
 cd "$(dirname "$0")"
-python dc_iteration/CodeCore/my_evalpref.py "$@"
+python3 dc_iteration/CodeCore/my_evalpref.py "$@"

@@ -16,7 +16,13 @@ from dc_iteration.CodeCore.IO_process import *
 
 
 def generate_one_problem(prompt, entry_point, max_retries: int = 3):
-    client = openai.OpenAI(api_key=API_KEY, base_url=BASE_URL)
+     from dc_iteration.CodeCore.hyperparams import API_KEY, MODEL_NAME, BASE_URL
+
+    # 检查 API_KEY 是否已设置
+    if API_KEY is None:
+        raise ValueError("OPENAI_API_KEY 环境变量未设置。请运行 'export OPENAI_API_KEY=your_key' 后再执行脚本。")
+
+    client = openai.OpenAI(api_key=API_KEY, base_url=BASE_URL) 
     system_msg = "You are an expert in writing structured Python docstrings with examples."
     prompt = remove_comments_ast(prompt)
     user_prompt = f"""
@@ -105,6 +111,10 @@ def generate_and_rename_samples_single_task(iteration: int, task_id: str, proble
     temp_problem_path = os.path.join(PROBLEM_PATH, f"temp_problems{iteration}.jsonl")
     write_jsonl(temp_problem_path, [problem])
 
+    #获取当前任务专属的result目录路径
+    task_result_dir = get_task_result_path(task_id)  # 从 hyperparams.py 导入的函数
+    # 确保任务目录存在
+    os.makedirs(task_result_dir, exist_ok=True)
     samples_path = my_run_codegen(
         model="gpt-4o-mini",
         root=os.path.join(BASE_DIR, "store_data", "result"),
@@ -119,7 +129,8 @@ def generate_and_rename_samples_single_task(iteration: int, task_id: str, proble
     )
 
     task_safe_id = task_id.replace("/", "_")
-    new_path = samples_path.replace(".jsonl", f"_samples{iteration}_{task_safe_id}.jsonl")
+    new_filename = os.path.basename(samples_path).replace(".jsonl", f"_samples{iteration}_{task_safe_id}.jsonl")
+    new_path = os.path.join(task_result_dir, new_filename) 
     if os.path.exists(samples_path):
         os.rename(samples_path, new_path)
 

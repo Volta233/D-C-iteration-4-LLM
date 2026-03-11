@@ -121,7 +121,7 @@ def evaluate(
     base_only: bool = False,
     parallel: Optional[int] = None,
     i_just_wanna_run: bool = False,
-    test_details: bool = False,
+    test_details: bool = True,
     min_time_limit: float = DEFAULT_MIN_TIME_LIMIT,
     gt_time_limit_factor: float = DEFAULT_GT_TIME_LIMIT_FACTOR,
     mini: bool = False,
