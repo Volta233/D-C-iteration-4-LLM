@@ -16,7 +16,7 @@ from dc_iteration.CodeCore.IO_process import *
 
 
 def generate_one_problem(prompt, entry_point, max_retries: int = 3):
-     from dc_iteration.CodeCore.hyperparams import API_KEY, MODEL_NAME, BASE_URL
+    from dc_iteration.CodeCore.hyperparams import API_KEY, MODEL_NAME, BASE_URL
 
     # 检查 API_KEY 是否已设置
     if API_KEY is None:

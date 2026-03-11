@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import psutil
 
-from dc_iteration.config import *
+from dc_iteration.CodeCore.hyperparams import *
 from dc_iteration.eval._special_oracle import _poly
 from dc_iteration.eval.utils import (
     create_tempdir,
