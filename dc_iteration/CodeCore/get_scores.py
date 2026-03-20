@@ -32,15 +32,25 @@ def select_sample(samples: List[Dict], problem: Dict) -> Optional[Dict]:
 
 
 def calculate_final_score(B_list: List[float]) -> float:
-    """计算最终 C 评分"""
+    """计算归一化的最终 C 评分"""
     N = len(B_list)
     lambda_val = 0.05
-    total = 0.0
+    weighted_score_sum = 0.0
+    weight_sum = 0.0  # 用于归一化的权重总和
+
     for i in range(N):
         linear_decay = (N - (i + 1) + 1) / N
         exp_decay = np.exp(-lambda_val * i)
-        total += B_list[i] * linear_decay * exp_decay
-    return total
+        weight_i = linear_decay * exp_decay  # 当前轮次的权重
+
+        weighted_score_sum += B_list[i] * weight_i
+        weight_sum += weight_i  # 累积理论最大权重
+
+    # 归一化：除以理论最大可能得分（即所有权重之和）
+    if weight_sum > 0:
+        return weighted_score_sum / weight_sum
+    else:
+        return 0.0
 
 
 def filter_frequent_fails(fail_stats, num_iterations, all_task_ids):
@@ -101,7 +111,7 @@ def calculate_and_log_scores_single_task(task_id: str, task_samples: List[Dict],
             pass_rate = max(0.0, min(1.0, pass_rate))
 
             denominator = 1 - pass_rate + epsilon
-            A_j = np.log(pass_rate / denominator) if denominator != 0 else 0.0
+            A_j = pass_rate
             A_list.append(A_j)
 
             log_record = {
