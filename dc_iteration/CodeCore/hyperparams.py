@@ -34,8 +34,8 @@ if not os.path.exists(report_dir):
     print(f"Created report directory: {report_dir}")
 
 # 迭代参数
-NUM_SAMPLES_PER_TASK = 3
-NUM_ITERATION = 2
+NUM_SAMPLES_PER_TASK = 30
+NUM_ITERATION = 10
 
 # 运行时间限制
 DEFAULT_GT_TIME_LIMIT_FACTOR = 4.0
